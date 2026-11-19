@@ -10,6 +10,7 @@ https://github.com/<repo>/releases/latest/download/latest.json.
 """
 import hashlib
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,7 +40,11 @@ def main() -> int:
     if not notas_arq.is_file():
         print(f"ERRO: faltam as notas da versão em {notas_arq}", file=sys.stderr)
         return 1
+    # O aviso de atualização do app mostra texto puro: tira a marcação Markdown.
     notas = notas_arq.read_text().strip()
+    notas = re.sub(r"^#+\s*", "", notas, flags=re.M)
+    notas = re.sub(r"\*\*(.+?)\*\*", r"\1", notas)
+    notas = notas.replace("`", "")
 
     base = f"https://github.com/{REPO}/releases/download/v{versao}"
     plataformas = {}
