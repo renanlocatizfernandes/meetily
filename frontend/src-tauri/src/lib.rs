@@ -37,6 +37,7 @@ pub(crate) use perf_trace;
 
 // Declare audio module
 pub mod analytics;
+pub mod auto_record;
 pub mod live_assist;
 pub mod api;
 pub mod audio;
@@ -189,6 +190,10 @@ fn split_startup_logger<R: Runtime>(
     })
 }
 static RECORDING_FLAG: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn set_recording_flag(active: bool) {
+    RECORDING_FLAG.store(active, Ordering::SeqCst);
+}
 
 #[cfg(target_os = "windows")]
 static ONNX_RUNTIME_INIT_ERROR: std::sync::OnceLock<String> = std::sync::OnceLock::new();
@@ -602,6 +607,8 @@ pub fn run() {
             {
                 use tauri::Emitter;
                 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+                auto_record::start(_app.handle().clone());
+
                 if let Err(error) = _app.global_shortcut().on_shortcut(
                     "CommandOrControl+Shift+L",
                     |app, _shortcut, event| {
@@ -913,6 +920,9 @@ pub fn run() {
             live_assist::commands::get_live_assist_settings,
             live_assist::commands::save_live_assist_settings,
             live_assist::commands::open_live_assist_window,
+            auto_record::get_auto_record_settings,
+            auto_record::save_auto_record_settings,
+            auto_record::dismiss_auto_recording,
             audio::recording_preferences::get_audio_backend_info,
             // Language preference commands
             set_language_preference,

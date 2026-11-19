@@ -21,6 +21,7 @@ import { indexedDBService } from '@/services/indexedDBService';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { LiveAssistPanel } from '@/components/LiveAssist/LiveAssistPanel';
+import { AutoRecordBanner } from '@/components/AutoRecord/AutoRecordBanner';
 import { useLiveAssist } from '@/contexts/LiveAssistContext';
 
 export default function Home() {
@@ -209,6 +210,7 @@ export default function Home() {
         onDelete={deleteRecoverableMeeting}
         onLoadPreview={loadMeetingTranscripts}
       />
+      <AutoRecordBanner />
       <div className="flex flex-1 overflow-hidden">
         <TranscriptPanel
           isProcessingStop={isProcessingStop}
