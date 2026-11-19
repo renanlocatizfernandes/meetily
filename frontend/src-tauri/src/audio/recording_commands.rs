@@ -626,6 +626,8 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
         info!("✅ Transcript-update event listener registered for history persistence");
     }
 
+    crate::live_assist::on_recording_started(app.clone());
+
     // Emit success event
     app.emit("recording-started", serde_json::json!({
         "message": "Recording started successfully with parallel processing",
@@ -840,6 +842,8 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
         info!("✅ Transcript-update event listener registered for history persistence");
     }
 
+    crate::live_assist::on_recording_started(app.clone());
+
     // Emit success event
     app.emit("recording-started", serde_json::json!({
         "message": "Recording started with custom devices and parallel processing",
@@ -944,6 +948,7 @@ async fn stop_recording_for_session<R: Runtime>(
             info!("✅ Transcript-update listener removed");
         }
     }
+    crate::live_assist::on_recording_stopped(&app);
 
     // Step 2: Signal transcription workers to finish processing ALL queued chunks
     let _ = app.emit(

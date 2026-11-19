@@ -37,6 +37,7 @@ pub(crate) use perf_trace;
 
 // Declare audio module
 pub mod analytics;
+pub mod live_assist;
 pub mod api;
 pub mod audio;
 pub mod config;
@@ -573,6 +574,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(whisper_engine::parallel_commands::ParallelProcessorState::new())
         .manage(Arc::new(RwLock::new(
             None::<notifications::manager::NotificationManager<tauri::Wry>>,
@@ -595,6 +597,22 @@ pub fn run() {
             }
 
             log::info!("Starting application...");
+
+            #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
+            {
+                use tauri::Emitter;
+                use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+                if let Err(error) = _app.global_shortcut().on_shortcut(
+                    "CommandOrControl+Shift+L",
+                    |app, _shortcut, event| {
+                        if event.state == ShortcutState::Pressed {
+                            let _ = app.emit("live-assist-toggle", ());
+                        }
+                    },
+                ) {
+                    log::warn!("Live assist shortcut was not registered: {}", error);
+                }
+            }
 
             #[cfg(target_os = "windows")]
             match _app.path().resolve(
@@ -892,6 +910,9 @@ pub fn run() {
             audio::recording_preferences::get_available_audio_backends,
             audio::recording_preferences::get_current_audio_backend,
             audio::recording_preferences::set_audio_backend,
+            live_assist::commands::get_live_assist_settings,
+            live_assist::commands::save_live_assist_settings,
+            live_assist::commands::open_live_assist_window,
             audio::recording_preferences::get_audio_backend_info,
             // Language preference commands
             set_language_preference,
