@@ -17,7 +17,7 @@ pub struct LiveAssistSettings {
 impl Default for LiveAssistSettings {
     fn default() -> Self {
         Self {
-            enabled: true,
+            enabled: false,
             model: DEFAULT_MODEL.to_string(),
             language: "pt-BR".to_string(),
             frequency: "media".to_string(),
@@ -61,7 +61,7 @@ pub async fn load_settings(pool: &SqlitePool) -> Result<LiveAssistSettings, sqlx
         return Ok(LiveAssistSettings::default());
     };
 
-    let enabled: i64 = row.try_get("enabled").unwrap_or(1);
+    let enabled: i64 = row.try_get("enabled").unwrap_or(0);
     let model: String = row.try_get("model").unwrap_or_else(|_| DEFAULT_MODEL.to_string());
     let language: String = row.try_get("language").unwrap_or_else(|_| "pt-BR".to_string());
     let frequency: String = row.try_get("frequency").unwrap_or_else(|_| "media".to_string());

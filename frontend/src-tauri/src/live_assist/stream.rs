@@ -17,6 +17,11 @@ const DEFAULT_OLLAMA_ENDPOINT: &str = "http://localhost:11434";
 /// The expected answer is at most six short strings. The cap stops a small
 /// model that starts repeating itself from generating until the time limit.
 const STREAM_MAX_TOKENS: u32 = 512;
+/// Context window asked from Ollama for live assist. The prompt is capped at a
+/// few thousand characters, so 4096 tokens is enough, and it keeps the model
+/// from being loaded with the much larger window Ollama picks on its own
+/// (16k on a 24 GB Mac), which costs several GB of memory.
+pub const LIVE_ASSIST_NUM_CTX: u32 = 4096;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StreamError {
@@ -53,6 +58,56 @@ pub(crate) enum SseEvent {
     Activity,
     Done,
     Ignore,
+}
+
+/// Reads one line of Ollama's native `/api/chat` stream (one JSON object per line).
+pub(crate) fn parse_native_line(line: &str) -> SseEvent {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(line.trim()) else {
+        return SseEvent::Ignore;
+    };
+    let text_of = |key: &str| {
+        value
+            .get("message")
+            .and_then(|message| message.get(key))
+            .and_then(serde_json::Value::as_str)
+            .filter(|text| !text.is_empty())
+    };
+    if let Some(text) = text_of("content") {
+        return SseEvent::Content(text.to_string());
+    }
+    if value.get("done").and_then(serde_json::Value::as_bool) == Some(true) {
+        return SseEvent::Done;
+    }
+    if text_of("thinking").is_some() {
+        SseEvent::Activity
+    } else {
+        SseEvent::Ignore
+    }
+}
+
+/// Reads one line of either stream format: server-sent events from the
+/// OpenAI-compatible endpoint or JSON lines from the native one.
+pub(crate) fn parse_stream_line(line: &str) -> SseEvent {
+    if line.trim_start().starts_with('{') {
+        parse_native_line(line)
+    } else {
+        parse_sse_line(line)
+    }
+}
+
+/// Body for Ollama's native chat endpoint, the only one that accepts `num_ctx`.
+pub(crate) fn build_native_chat_body(model: &str, system_prompt: &str, user_prompt: &str) -> serde_json::Value {
+    serde_json::json!({
+        "model": model,
+        "messages": [
+            { "role": "system", "content": system_prompt },
+            { "role": "user", "content": user_prompt },
+        ],
+        "stream": true,
+        // Reasoning models would spend seconds thinking before the first suggestion.
+        "think": false,
+        "options": { "num_ctx": LIVE_ASSIST_NUM_CTX, "num_predict": STREAM_MAX_TOKENS },
+    })
 }
 
 /// Reads one line of the event stream.
@@ -139,6 +194,27 @@ async fn open_stream(
         .filter(|value| !value.is_empty())
         .unwrap_or(DEFAULT_OLLAMA_ENDPOINT)
         .trim_end_matches('/');
+
+    // Native endpoint first: it lets us cap the context window. Anything that
+    // is not a plain success falls back to the OpenAI-compatible call below,
+    // so an older Ollama or another compatible server keeps working.
+    let native_url = format!("{host}/api/chat");
+    let mut native_body = build_native_chat_body(model, system_prompt, user_prompt);
+    for _ in 0..2 {
+        match send(client, &native_url, &native_body).await {
+            Ok(response) if response.status().is_success() => return Ok(response),
+            Ok(response) if response.status().as_u16() == 400 => {
+                // Models without a thinking mode can refuse the `think` field.
+                let had_think = native_body.as_object_mut().and_then(|object| object.remove("think")).is_some();
+                if !had_think {
+                    break;
+                }
+            }
+            Ok(_) => break,
+            Err(error) => return Err(error),
+        }
+    }
+
     let url = format!("{host}/v1/chat/completions");
     let mut body = build_openai_compat_chat_body(
         &LLMProvider::Ollama,
@@ -240,7 +316,7 @@ where
         }
         let mut grew = false;
         for line in drain_lines(&mut buffer) {
-            match parse_sse_line(&line) {
+            match parse_stream_line(&line) {
                 SseEvent::Content(text) => {
                     first_token.get_or_insert_with(|| started.elapsed());
                     content.push_str(&text);
@@ -276,6 +352,31 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_the_native_stream_and_caps_the_context() {
+        assert_eq!(
+            parse_stream_line(r#"{"model":"m","message":{"role":"assistant","content":"{\"per"},"done":false}"#),
+            SseEvent::Content("{\"per".to_string())
+        );
+        assert_eq!(
+            parse_stream_line(r#"{"message":{"role":"assistant","content":"","thinking":"hm"},"done":false}"#),
+            SseEvent::Activity
+        );
+        assert_eq!(
+            parse_stream_line(r#"{"message":{"role":"assistant","content":""},"done":true,"done_reason":"stop"}"#),
+            SseEvent::Done
+        );
+        assert_eq!(parse_stream_line(r#"{"message":{"content":""},"done":false}"#), SseEvent::Ignore);
+        assert_eq!(parse_stream_line("data: [DONE]"), SseEvent::Done);
+
+        let body = build_native_chat_body("m", "sistema", "usuario");
+        assert_eq!(body["options"]["num_ctx"], LIVE_ASSIST_NUM_CTX);
+        assert_eq!(body["options"]["num_predict"], STREAM_MAX_TOKENS);
+        assert_eq!(body["stream"], true);
+        assert_eq!(body["think"], false);
+        assert_eq!(body["messages"][1]["content"], "usuario");
+    }
 
     #[test]
     fn reads_content_reasoning_done_and_noise() {

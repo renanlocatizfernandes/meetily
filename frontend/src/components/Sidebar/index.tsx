@@ -408,7 +408,7 @@ const Sidebar: React.FC = () => {
         </div>
 
         {filterChips.length > 0 && (
-          <div className="flex shrink-0 gap-1 overflow-x-auto px-3 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Filtros">
+          <div className="flex max-h-[3.75rem] shrink-0 flex-wrap gap-1 overflow-y-auto px-3 pb-2 custom-scrollbar" aria-label="Filtros">
             {filterChips.map((chip) => {
               const selected = activeFilter?.kind === chip.kind && activeFilter.value === chip.value;
               return (
@@ -452,7 +452,8 @@ const Sidebar: React.FC = () => {
           type="button"
           onClick={() => (isRecording ? router.push('/') : handleRecordingToggle())}
           aria-label={isRecording ? `${recordingLabel}. Abrir a gravação` : 'Iniciar gravação'}
-          className={`inline-flex h-7 shrink-0 items-center gap-2 rounded-md px-2 text-xs transition-colors duration-150 hover:bg-sidebar-accent ${
+          title={isRecording ? recordingLabel : undefined}
+          className={`inline-flex h-7 min-w-0 shrink items-center gap-2 rounded-md px-2 text-xs transition-colors duration-150 hover:bg-sidebar-accent ${
             isRecording ? 'font-medium text-recording' : 'text-muted-foreground hover:text-foreground'
           }`}
         >
@@ -461,9 +462,13 @@ const Sidebar: React.FC = () => {
           ) : (
             <Mic className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           )}
-          <span className="truncate tabular-nums">{recordingLabel}</span>
+          {/* Durante a gravação mostra só o tempo, para caber ao lado dos ícones */}
+          <span className="truncate tabular-nums">
+            {isRecording ? formatElapsed(activeDuration) : recordingLabel}
+          </span>
         </button>
         <span className="ml-auto" />
+        <div className="flex shrink-0 items-center gap-1">
         <ThemeSwitch />
         <IconButton label="Enviar feedback" tooltipSide="top" size="sm" active={isFeedbackPage} onClick={goToFeedback}>
           <MessagesSquare />
@@ -471,6 +476,7 @@ const Sidebar: React.FC = () => {
         <IconButton label="Configurações" tooltipSide="top" size="sm" active={isSettingsPage} onClick={goToSettings}>
           <Settings />
         </IconButton>
+        </div>
       </div>
       {sharedOverlays}
     </aside>
