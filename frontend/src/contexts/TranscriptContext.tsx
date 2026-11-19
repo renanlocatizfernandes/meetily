@@ -424,6 +424,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
       audio_start_time: update.audio_start_time,
       audio_end_time: update.audio_end_time,
       duration: update.duration,
+      speaker: update.source === 'mic' || update.source === 'system' ? update.source : undefined,
     };
 
     setTranscripts(prev => {
@@ -464,8 +465,12 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
       return `[${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}]`;
     };
 
+    const speakerLabel = (speaker?: string) => speaker === 'mic' ? 'Você' : speaker === 'system' ? 'Participantes' : '';
     const fullTranscript = transcripts
-      .map(t => `${formatTime(t.audio_start_time)} ${t.text}`)
+      .map(t => {
+        const label = speakerLabel(t.speaker);
+        return `${formatTime(t.audio_start_time)}${label ? ` ${label}:` : ''} ${t.text}`;
+      })
       .join('\n');
     navigator.clipboard.writeText(fullTranscript);
 

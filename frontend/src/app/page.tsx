@@ -20,6 +20,8 @@ import { TranscriptRecovery } from '@/components/TranscriptRecovery';
 import { indexedDBService } from '@/services/indexedDBService';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { LiveAssistPanel } from '@/components/LiveAssist/LiveAssistPanel';
+import { useLiveAssist } from '@/contexts/LiveAssistContext';
 
 export default function Home() {
   // Local page state (not moved to contexts)
@@ -60,6 +62,7 @@ export default function Home() {
   } = useTranscriptRecovery();
 
   const router = useRouter();
+  const { settings: liveAssistSettings, status: liveAssistStatus, panelOpen, setPanelOpen } = useLiveAssist();
 
   useEffect(() => {
     // Track page view
@@ -212,6 +215,7 @@ export default function Home() {
           isStopping={isStopping}
           showModal={showModal}
         />
+        <LiveAssistPanel />
 
         {/* Recording controls - only show when permissions are granted or already recording and not showing status messages */}
         {(hasMicrophone || isRecording) &&
@@ -226,6 +230,16 @@ export default function Home() {
               >
                 <div className="w-2/3 max-w-[750px] flex justify-center">
                   <div className="bg-white rounded-full shadow-lg flex items-center">
+                    {recordingState.isRecording && liveAssistSettings.enabled && (
+                      <button
+                        type="button"
+                        onClick={() => setPanelOpen(!panelOpen)}
+                        className="mr-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800"
+                      >
+                        <span className={`h-2 w-2 rounded-full ${liveAssistStatus.busy ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                        Gravando · Ajuda ao vivo
+                      </button>
+                    )}
                     <RecordingControls
                       isRecording={recordingState.isRecording}
                       onRecordingStop={(callApi = true) => handleRecordingStop(callApi)}

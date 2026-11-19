@@ -9,6 +9,7 @@ import AnalyticsProvider from '@/components/AnalyticsProvider'
 import { Toaster, toast } from 'sonner'
 import "sonner/dist/styles.css"
 import { useState, useEffect, useCallback } from 'react'
+import { usePathname } from 'next/navigation'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -22,6 +23,7 @@ import { loadBetaFeatures } from '@/types/betaFeatures'
 import { DownloadProgressToastProvider } from '@/components/shared/DownloadProgressToast'
 import { UpdateCheckProvider } from '@/components/UpdateCheckProvider'
 import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcessingProvider'
+import { LiveAssistProvider } from '@/contexts/LiveAssistContext'
 import { ImportAudioDialog, ImportDropOverlay } from '@/components/ImportAudio'
 import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
@@ -75,6 +77,8 @@ export default function RootLayout({
   const [showDropOverlay, setShowDropOverlay] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importFilePath, setImportFilePath] = useState<string | null>(null)
+  const pathname = usePathname()
+  const standaloneLiveAssist = pathname === '/live-assist'
 
   useEffect(() => {
     // Check onboarding status first
@@ -234,7 +238,8 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${sourceSans3.variable} font-sans antialiased`}>
         <AnalyticsProvider>
-          <RecordingStateProvider>
+            <RecordingStateProvider>
+            <LiveAssistProvider>
             <TranscriptProvider>
               <ConfigProvider>
                 <OllamaDownloadProvider>
@@ -248,7 +253,9 @@ export default function RootLayout({
                               <DownloadProgressToastProvider />
 
                               {/* Show onboarding or main app */}
-                              {showOnboarding ? (
+                              {standaloneLiveAssist ? (
+                                <div className="h-screen bg-white">{children}</div>
+                              ) : showOnboarding ? (
                                 <OnboardingFlow onComplete={handleOnboardingComplete} />
                               ) : (
                                 <div className="flex">
@@ -273,6 +280,7 @@ export default function RootLayout({
                 </OllamaDownloadProvider>
               </ConfigProvider>
             </TranscriptProvider>
+            </LiveAssistProvider>
           </RecordingStateProvider>
         </AnalyticsProvider>
 
