@@ -8,11 +8,14 @@ mod debounce;
 mod parse;
 mod prompt;
 mod service;
-mod settings_store;
+pub(crate) mod settings_store;
 mod similarity;
 mod target;
 mod trigger;
 mod window;
+
+pub(crate) use service::load_hint as load_summary_hint;
+pub(crate) use target::resolve_target;
 
 pub use commands::{get_live_assist_settings, open_live_assist_window, save_live_assist_settings};
 pub use service::{on_recording_started, on_recording_stopped};

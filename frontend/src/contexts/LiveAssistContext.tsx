@@ -111,6 +111,17 @@ export function LiveAssistProvider({ children }: { children: React.ReactNode }) 
       const statuses = await listen<LiveAssistStatus>('live-assist-status', (event) => {
         setStatus(event.payload);
       });
+      const alerts = await listen<{ text: string; kind: string }>('commitment-alert', (event) => {
+        toast.message(`Compromisso (${event.payload.kind})`, { description: event.payload.text });
+        setItems((current) => [{
+          id: `alert-${Date.now()}`,
+          section: 'contexto' as const,
+          text: `Compromisso: ${event.payload.text}`,
+          pinned: true,
+          createdAt: Date.now(),
+        }, ...current].slice(0, 40));
+        setPanelOpenState((open) => open || !panelDismissed.current);
+      });
       const toggles = await listen('live-assist-toggle', async () => {
         const label = getCurrentWindow().label;
         if (label === 'live-assist') {
@@ -132,10 +143,11 @@ export function LiveAssistProvider({ children }: { children: React.ReactNode }) 
       if (!active) {
         updates();
         statuses();
+        alerts();
         toggles();
         return;
       }
-      unlisteners.push(updates, statuses, toggles);
+      unlisteners.push(updates, statuses, alerts, toggles);
     };
 
     attach().catch((error) => console.error('Falha ao ouvir a ajuda ao vivo', error));

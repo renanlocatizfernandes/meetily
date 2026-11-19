@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { LiveAssistPanel } from '@/components/LiveAssist/LiveAssistPanel';
 import { AutoRecordBanner } from '@/components/AutoRecord/AutoRecordBanner';
+import { RecursosBar } from '@/components/Recursos/RecursosBar';
 import { useLiveAssist } from '@/contexts/LiveAssistContext';
 
 export default function Home() {
@@ -232,6 +233,7 @@ export default function Home() {
               >
                 <div className="w-2/3 max-w-[750px] flex justify-center">
                   <div className="bg-white rounded-full shadow-lg flex items-center">
+                    <RecursosBar />
                     {recordingState.isRecording && liveAssistSettings.enabled && (
                       <button
                         type="button"

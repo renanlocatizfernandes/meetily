@@ -22,10 +22,11 @@ impl Channel {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Assignment {
     pub key: String,
     pub label: String,
+    pub embedding: Option<Vec<f32>>,
 }
 
 struct Cluster {
@@ -58,8 +59,9 @@ impl SpeakerBook {
             self.update_centroid(index, &embedding);
             let key = self.clusters[index].key.clone();
             let label = self.clusters[index].default_label.clone();
+            let embedding = self.clusters[index].embedding.clone();
             self.remember(channel, &key);
-            return Some(self.finish(key, label));
+            return Some(self.finish(key, label, Some(embedding)));
         }
 
         if seconds < MIN_NEW_SECONDS {
@@ -81,18 +83,19 @@ impl SpeakerBook {
         self.clusters.push(Cluster {
             key: key.clone(),
             channel,
-            embedding,
+            embedding: embedding.clone(),
             samples: 1,
             default_label: default_label.clone(),
         });
         self.remember(channel, &key);
-        Some(self.finish(key, default_label))
+        Some(self.finish(key, default_label, Some(embedding)))
     }
 
-    fn finish(&self, key: String, default_label: String) -> Assignment {
+    fn finish(&self, key: String, default_label: String, embedding: Option<Vec<f32>>) -> Assignment {
         Assignment {
             label: display_name(&key, &default_label),
             key,
+            embedding,
         }
     }
 
@@ -137,13 +140,12 @@ impl SpeakerBook {
             Channel::Mic => self.last_mic.clone(),
             Channel::System => self.last_system.clone(),
         }?;
-        let label = self
-            .clusters
-            .iter()
-            .find(|cluster| cluster.key == key)
+        let found = self.clusters.iter().find(|cluster| cluster.key == key);
+        let label = found
             .map(|cluster| cluster.default_label.clone())
             .unwrap_or_else(|| "Pessoa".to_string());
-        Some(self.finish(key, label))
+        let embedding = found.map(|cluster| cluster.embedding.clone());
+        Some(self.finish(key, label, embedding))
     }
 }
 

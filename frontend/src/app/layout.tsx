@@ -24,6 +24,7 @@ import { DownloadProgressToastProvider } from '@/components/shared/DownloadProgr
 import { UpdateCheckProvider } from '@/components/UpdateCheckProvider'
 import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcessingProvider'
 import { LiveAssistProvider } from '@/contexts/LiveAssistContext'
+import { FeatureProvider } from '@/contexts/FeatureContext'
 import { ImportAudioDialog, ImportDropOverlay } from '@/components/ImportAudio'
 import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
@@ -240,6 +241,7 @@ export default function RootLayout({
         <AnalyticsProvider>
             <RecordingStateProvider>
             <LiveAssistProvider>
+            <FeatureProvider>
             <TranscriptProvider>
               <ConfigProvider>
                 <OllamaDownloadProvider>
@@ -280,6 +282,7 @@ export default function RootLayout({
                 </OllamaDownloadProvider>
               </ConfigProvider>
             </TranscriptProvider>
+            </FeatureProvider>
             </LiveAssistProvider>
           </RecordingStateProvider>
         </AnalyticsProvider>

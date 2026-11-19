@@ -22,6 +22,7 @@ use super::similarity::ShownSuggestions;
 use super::target::{resolve_target, LlmTarget, SummaryHint};
 use super::trigger::{classify_segment, PauseWatch, TriggerKind, PAUSE_THRESHOLD};
 use super::window::{TranscriptPiece, TranscriptWindow};
+use crate::assist_plus::{self, FeatureToggles};
 
 const LIVE_REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
 
@@ -31,6 +32,7 @@ struct SessionState {
     gate: InFlightGate,
     shown: ShownSuggestions,
     settings: LiveAssistSettings,
+    toggles: FeatureToggles,
 }
 
 struct Session {
@@ -65,7 +67,7 @@ struct Job<R: Runtime> {
     app: AppHandle<R>,
     token: CancellationToken,
     state: Arc<Mutex<SessionState>>,
-    prompt: String,
+    pool: SqlitePool,
     target: LlmTarget,
     kind: TriggerKind,
     generation: u64,
@@ -89,6 +91,7 @@ pub fn on_recording_started<R: Runtime>(app: AppHandle<R>) {
         gate: InFlightGate::new(cancel.clone(), frequency_gap("media")),
         shown: ShownSuggestions::default(),
         settings: LiveAssistSettings::default(),
+        toggles: FeatureToggles::default(),
     }));
 
     let app_for_events = app.clone();
@@ -159,14 +162,16 @@ async fn refresh_settings(pool: &SqlitePool, state: &Mutex<SessionState>) -> boo
         }
     };
     let enabled = settings.enabled;
+    let toggles = assist_plus::load(pool).await.unwrap_or_default();
     if let Ok(mut guard) = state.lock() {
         guard.gate.set_min_gap(frequency_gap(&settings.frequency));
         guard.settings = settings;
+        guard.toggles = toggles;
     }
     enabled
 }
 
-async fn load_hint(pool: &SqlitePool) -> SummaryHint {
+pub(crate) async fn load_hint(pool: &SqlitePool) -> SummaryHint {
     let Ok(Some(config)) = SettingsRepository::get_model_config(pool).await else {
         return SummaryHint::default();
     };
@@ -209,6 +214,23 @@ async fn handle_transcript<R: Runtime>(
         .map(str::trim)
         .filter(|label| !label.is_empty())
         .unwrap_or(channel);
+    if channel == "system" {
+        let alerts = {
+            let Ok(guard) = state.lock() else { return };
+            guard.toggles.commitment_alerts
+        };
+        if alerts {
+            for commitment in assist_plus::detect_commitments(&update.text) {
+                let _ = app.emit(
+                    "commitment-alert",
+                    serde_json::json!({
+                        "kind": commitment.kind,
+                        "text": commitment.text,
+                    }),
+                );
+            }
+        }
+    }
     let kind = classify_segment(channel, &update.text);
     let hint = if kind.is_some() {
         Some(load_hint(&pool).await)
@@ -235,7 +257,7 @@ async fn handle_transcript<R: Runtime>(
         let Some(hint) = hint else {
             return;
         };
-        begin_job(&app, &state, &mut guard, kind, &hint)
+        begin_job(&app, &state, &pool, &mut guard, kind, &hint)
     };
     spawn_job(job);
 }
@@ -265,7 +287,7 @@ async fn consider_pause<R: Runtime>(
         if !guard.pause.take_pause(Instant::now(), PAUSE_THRESHOLD) {
             return;
         }
-        begin_job(&app, &state, &mut guard, TriggerKind::Pause, &hint)
+        begin_job(&app, &state, &pool, &mut guard, TriggerKind::Pause, &hint)
     };
     spawn_job(job);
 }
@@ -273,6 +295,7 @@ async fn consider_pause<R: Runtime>(
 fn begin_job<R: Runtime>(
     app: &AppHandle<R>,
     state: &Arc<Mutex<SessionState>>,
+    pool: &SqlitePool,
     guard: &mut SessionState,
     kind: TriggerKind,
     hint: &SummaryHint,
@@ -296,25 +319,18 @@ fn begin_job<R: Runtime>(
     else {
         return None;
     };
-    let prompt = user_prompt(
-        &guard.settings.language,
-        &guard.settings.meeting_context,
-        &guard.window,
-        &guard.shown.lines(),
-    );
     debug!(
-        "Live assist call; trigger={}, local={}, cancelled_previous={}, prompt_chars={}",
+        "Live assist call; trigger={}, local={}, cancelled_previous={}",
         describe_trigger(kind),
         !target.leaves_machine,
         cancelled_previous,
-        prompt.chars().count()
     );
     emit_status(app, guard.settings.enabled, true, true, None);
     Some(Job {
         app: app.clone(),
         token,
         state: state.clone(),
-        prompt,
+        pool: pool.clone(),
         target,
         kind,
         generation,
@@ -338,13 +354,53 @@ async fn run_job<R: Runtime>(job: Job<R>) {
 
     let client = Client::new();
     let target = &job.target;
+    let snapshot = {
+        let Ok(guard) = job.state.lock() else { return };
+        (
+            guard.settings.language.clone(),
+            guard.settings.meeting_context.clone(),
+            guard.window.clone(),
+            guard.shown.lines(),
+            guard.toggles.internet_search,
+            guard.toggles.translation.clone(),
+        )
+    };
+    let (language, context, window, shown, internet, translation) = snapshot;
+    let mut sources = String::new();
+    if internet {
+        let recent = window
+            .recent()
+            .filter(|piece| piece.source != "Você" && piece.source != "mic")
+            .map(|piece| piece.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let terms = assist_plus::unknown_terms(&recent, &context);
+        for hit in assist_plus::lookup_terms(&job.pool, &terms).await {
+            let line = assist_plus::contexto_line(&hit);
+            sources.push_str(&format!("- {line}\n"));
+            let _ = job.app.emit(
+                "live-assist-update",
+                AssistUpdate {
+                    items: vec![AssistItem {
+                        id: Uuid::new_v4().to_string(),
+                        section: "contexto".to_string(),
+                        text: line,
+                    }],
+                },
+            );
+        }
+    }
+    if assist_plus::should_translate(&translation, &window.recent().map(|piece| piece.text.as_str()).collect::<Vec<_>>().join(" ")) {
+        sources.push_str("Traduza para pt-BR a fala que não estiver em português e sugira a resposta no idioma da reunião.\n");
+    }
+    let prompt = user_prompt(&language, &context, &window, &shown, &sources);
     let request = generate_summary(
         &client,
         &target.provider,
         &target.model,
         &target.api_key,
         system_prompt(),
-        &job.prompt,
+        &prompt,
         target.ollama_endpoint.as_deref(),
         target.custom_openai_endpoint.as_deref(),
         target.max_tokens,

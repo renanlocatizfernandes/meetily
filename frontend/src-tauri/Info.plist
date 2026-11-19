@@ -8,6 +8,10 @@
     <string>Meetily Live needs screen and system audio recording permission to transcribe the other participants. It does not hide itself from screen sharing.</string>
     <key>NSAudioCaptureUsageDescription</key>
     <string>Meetily Live needs system audio so the other participants can be transcribed separately from the microphone.</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Meetily Live reads the title, notes and attendees of the next meeting on this Mac to prefill the meeting context. It does not hide itself from screen sharing.</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>Meetily Live can export follow-up tasks. Opening them in Reminders is optional and nothing is sent automatically.</string>
     <key>com.apple.security.device.audio-input</key>
     <true/>
 </dict>

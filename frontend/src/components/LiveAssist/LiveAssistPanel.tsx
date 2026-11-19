@@ -3,6 +3,7 @@
 import { Copy, Pin, PinOff, X, AppWindow, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { LiveAssistItem, LiveAssistSection, useLiveAssist } from '@/contexts/LiveAssistContext';
+import { RecursosBar } from '@/components/Recursos/RecursosBar';
 
 const SECTIONS: Array<{ id: LiveAssistSection; title: string; empty: string }> = [
   { id: 'perguntas', title: 'Perguntas', empty: 'Nenhuma pergunta sugerida ainda.' },
@@ -91,6 +92,7 @@ export function LiveAssistPanel({ floating = false }: { floating?: boolean }) {
           {status.busy && <span className="text-gray-500">Preparando sugestões…</span>}
         </div>
         {status.note && <p className="mt-2 text-xs text-amber-700">{status.note}</p>}
+        <div className="mt-3"><RecursosBar /></div>
         {!floating && (
           <button type="button" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline" onClick={openAlwaysOnTop}>
             <AppWindow className="h-3.5 w-3.5" /> Abrir em janela sempre visível

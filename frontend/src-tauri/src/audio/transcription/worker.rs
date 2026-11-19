@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 // Sequence counter for transcript updates
 static SEQUENCE_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -234,6 +234,9 @@ pub fn start_transcription_task<R: Runtime>(
                 let mut stats = WorkerLogStats::default();
                 let mut last_summary = Instant::now();
                 crate::speakers::clear_aliases();
+                if let Some(state) = app_clone.try_state::<crate::state::AppState>() {
+                    crate::speakers::load_voice_profiles(state.db_manager.pool()).await;
+                }
                 let mut speakers = crate::speakers::SpeakerBook::default();
 
                 while let Some(chunk) = {
@@ -254,7 +257,18 @@ pub fn start_transcription_task<R: Runtime>(
                         super::super::recording_state::DeviceType::Microphone => crate::speakers::Channel::Mic,
                         super::super::recording_state::DeviceType::System => crate::speakers::Channel::System,
                     };
-                    let assignment = speakers.assign(channel, &chunk.data, chunk.sample_rate);
+                    let mut assignment = speakers.assign(channel, &chunk.data, chunk.sample_rate);
+                    if let Some(item) = assignment.as_mut() {
+                        if let Some(embedding) = item.embedding.clone() {
+                            crate::speakers::remember_embedding(&item.key, embedding.clone());
+                            if item.label.starts_with("Pessoa") {
+                                if let Some(name) = crate::speakers::suggest_name(&embedding) {
+                                    crate::speakers::rename(item.key.clone(), name.clone());
+                                    item.label = name;
+                                }
+                            }
+                        }
+                    }
                     let processing_started = Instant::now();
 
                     if !engine_clone.is_model_loaded().await {

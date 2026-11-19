@@ -12,6 +12,7 @@ import { PreferenceSettings } from '@/components/PreferenceSettings';
 import { SummaryModelSettings } from '@/components/SummaryModelSettings';
 import { BetaSettings } from '@/components/BetaSettings';
 import { LiveAssistSettings } from '@/components/LiveAssist/LiveAssistSettings';
+import { RecursosSettings } from '@/components/Recursos/RecursosBar';
 import { useConfig } from '@/contexts/ConfigContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
@@ -133,6 +134,7 @@ export default function SettingsPage() {
             </TabsContent>
             <TabsContent value="liveAssist" className="mt-6">
               <LiveAssistSettings />
+              <RecursosSettings />
             </TabsContent>
           </Tabs>
         </div>

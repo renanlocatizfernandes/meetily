@@ -118,6 +118,33 @@ O nome do app é "Meetily Live". O identificador é `com.techfernandes.meetilyli
 - O atalho global pode falhar se outro app já registrou Ctrl+Shift+L ou ⌘+Shift+L. O app registra na subida e segue mesmo se o registro falhar.
 - Linux e Windows herdam o mesmo código, mas o `.dmg` e as permissões de áudio do sistema descritas acima são do macOS. A detecção de reunião só observa processos e janelas no macOS.
 
+## Pesquisa na internet
+
+A ajuda ao vivo procura termos que as outras pessoas citam (empresa, sigla, produto, nome entre aspas) e que ainda não estão no contexto da reunião. A busca usa duas APIs públicas, sem chave:
+
+- Wikipédia: `GET https://{pt|en}.wikipedia.org/api/rest_v1/page/summary/{título}` com `User-Agent` próprio. O texto vem de `extract` e o link de `content_urls.desktop.page`.
+- DuckDuckGo Instant Answer: `GET https://api.duckduckgo.com/?q={termo}&format=json&no_html=1&skip_disambig=1`. O texto vem de `AbstractText` e o link de `AbstractURL`.
+
+Só o termo sai da máquina. O resultado entra em Contexto, com o link, e também vai para o modelo local (ou para o provedor de resumo, se ele for nuvem). Se a rede falhar, a sugestão segue sem a fonte. O interruptor "Pesquisa na internet" fica ligado por padrão. Há cache na memória e na tabela `lookup_cache`.
+
+## Recursos
+
+O botão Recursos fica na tela de gravação e no painel de ajuda. Os mesmos interruptores estão em Configurações → Ajuda ao vivo. O padrão é ligado, menos a tradução, que fica em "Automática".
+
+| Recurso | O que faz | O que sai da máquina |
+| --- | --- | --- |
+| Tarefas | Depois da reunião, lê quem, o quê e o prazo e grava um `.ics` de tarefas (`VTODO`). O arquivo abre no app do sistema. Não usa EventKit: o cidre fixado neste repo não tem esse framework. | Nada |
+| Memória | Busca reuniões salvas com o mesmo título ou assunto e mostra o trecho e as tarefas ainda escritas. | Nada |
+| Agenda | No macOS, pede ao app Calendário (dicionário de script da Apple) os compromissos das próximas 24 horas e preenche o contexto com título, pauta e participantes. Também aceita um `.ics`. Contas do Google ou Outlook já sincronizadas no Calendário entram por ali. | Nada |
+| Nomes | Ao renomear uma voz, guarda o espectro local e reaplica o nome numa reunião futura se a semelhança passar de 0,94. Dá para corrigir de novo. | Nada |
+| Alertas | Avisa na hora quando alguém combina prazo, valor ou entrega. | Nada |
+| E-mail | Monta um rascunho a partir do texto e abre `mailto:`. Não envia. | Nada, até você enviar pelo app de e-mail |
+| Busca | Pergunta em linguagem natural, ranqueia trechos salvos e pede uma resposta curta ao modelo já configurado, citando data e trecho. | Os trechos só saem se o provedor de resumo for nuvem |
+| Placar | Tempo de fala por pessoa, perguntas sem resposta em 20 s e cobertura da pauta. | Nada |
+| Tradução | Em "Automática", pede tradução para pt-BR e resposta no idioma da reunião quando a fala parece inglês ou espanhol. "Sempre" e "Desligada" também existem. | O mesmo caminho da ajuda ao vivo |
+
+Permissões novas no `Info.plist`: `NSCalendarsUsageDescription` e `NSRemindersUsageDescription`. A leitura da agenda usa o app Calendário e pode pedir permissão de Automação. O `.ics` de tarefas não exige essa permissão. O app continua visível no compartilhamento de tela. Não há modo de objeção de vendas.
+
 ## Gravação automática (Teams, Zoom e Meet)
 
 No macOS, com a opção ligada (é o padrão, em Configurações → Gravação), o app observa a cada 2 segundos:

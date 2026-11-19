@@ -37,6 +37,7 @@ pub(crate) use perf_trace;
 
 // Declare audio module
 pub mod analytics;
+pub mod assist_plus;
 pub mod auto_record;
 pub mod live_assist;
 pub mod speakers;
@@ -925,6 +926,15 @@ pub fn run() {
             auto_record::save_auto_record_settings,
             auto_record::dismiss_auto_recording,
             speakers::rename_speaker,
+            assist_plus::commands::get_feature_toggles,
+            assist_plus::commands::save_feature_toggles,
+            assist_plus::commands::export_action_ics,
+            assist_plus::commands::recall_meetings,
+            assist_plus::commands::prepare_from_calendar,
+            assist_plus::commands::prepare_from_ics,
+            assist_plus::commands::search_meetings,
+            assist_plus::commands::meeting_scoreboard,
+            assist_plus::commands::draft_followup,
             audio::recording_preferences::get_audio_backend_info,
             // Language preference commands
             set_language_preference,
