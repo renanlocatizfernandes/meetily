@@ -1,4 +1,5 @@
 use crate::api::{MeetingDetails, MeetingTranscript};
+use crate::database::repositories::transcript::TranscriptsRepository;
 use crate::database::models::{MeetingModel, Transcript};
 use chrono::Utc;
 use sqlx::{Connection, Error as SqlxError, SqliteConnection, SqlitePool};
@@ -83,15 +84,23 @@ impl MeetingsRepository {
             transaction.commit().await?;
 
             // Convert Transcript to MeetingTranscript
+            let aliases = TranscriptsRepository::speaker_aliases(pool, meeting_id)
+                .await
+                .unwrap_or_default();
             let meeting_transcripts = transcripts
                 .into_iter()
-                .map(|t| MeetingTranscript {
-                    id: t.id,
-                    text: t.transcript,
-                    timestamp: t.timestamp,
-                    audio_start_time: t.audio_start_time,
-                    audio_end_time: t.audio_end_time,
-                    duration: t.duration,
+                .map(|t| {
+                    let speaker_key = t.speaker_key.clone();
+                    MeetingTranscript {
+                        id: t.id,
+                        text: t.transcript,
+                        timestamp: t.timestamp,
+                        audio_start_time: t.audio_start_time,
+                        audio_end_time: t.audio_end_time,
+                        duration: t.duration,
+                        speaker: TranscriptsRepository::display_speaker(&aliases, t.speaker, t.speaker_key),
+                        speaker_key,
+                    }
                 })
                 .collect::<Vec<_>>();
 
@@ -181,13 +190,16 @@ impl MeetingsRepository {
 
         let now = Utc::now().naive_utc();
 
-        let rows_affected =
-            sqlx::query("UPDATE meetings SET title = ?, updated_at = ? WHERE id = ?")
-                .bind(new_title)
-                .bind(now)
-                .bind(meeting_id)
-                .execute(&mut *transaction)
-                .await?;
+        // A title saved through this path was typed by the user: mark it so the
+        // automatic organizer and the summary rename leave it alone.
+        let rows_affected = sqlx::query(
+            "UPDATE meetings SET title = ?, title_source = 'manual', updated_at = ? WHERE id = ?",
+        )
+        .bind(new_title)
+        .bind(now)
+        .bind(meeting_id)
+        .execute(&mut *transaction)
+        .await?;
         if rows_affected.rows_affected() == 0 {
             transaction.rollback().await?;
             return Ok(false);
@@ -204,14 +216,19 @@ impl MeetingsRepository {
         let mut transaction = pool.begin().await?;
         let now = Utc::now();
 
-        // Update meetings table
-        let meeting_update =
-            sqlx::query("UPDATE meetings SET title = ?, updated_at = ? WHERE id = ?")
-                .bind(new_title)
-                .bind(now)
-                .bind(meeting_id)
-                .execute(&mut *transaction)
-                .await?;
+        // Update meetings table. The summary's suggested name only replaces the
+        // placeholder title from recording time; a title typed by the user
+        // ('manual') or built by the organizer ('auto') is kept.
+        let meeting_update = sqlx::query(
+            "UPDATE meetings
+             SET title = CASE WHEN title_source = 'default' THEN ? ELSE title END, updated_at = ?
+             WHERE id = ?",
+        )
+        .bind(new_title)
+        .bind(now)
+        .bind(meeting_id)
+        .execute(&mut *transaction)
+        .await?;
 
         if meeting_update.rows_affected() == 0 {
             transaction.rollback().await?;
@@ -219,11 +236,14 @@ impl MeetingsRepository {
         }
 
         // Update transcript_chunks table
-        sqlx::query("UPDATE transcript_chunks SET meeting_name = ? WHERE meeting_id = ?")
-            .bind(new_title)
-            .bind(meeting_id)
-            .execute(&mut *transaction)
-            .await?;
+        sqlx::query(
+            "UPDATE transcript_chunks
+             SET meeting_name = (SELECT title FROM meetings WHERE id = ?1)
+             WHERE meeting_id = ?1",
+        )
+        .bind(meeting_id)
+        .execute(&mut *transaction)
+        .await?;
 
         transaction.commit().await?;
         Ok(true)

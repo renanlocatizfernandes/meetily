@@ -18,19 +18,10 @@ function StatusOverlay({ show, message, sidebarCollapsed }: StatusOverlayProps) 
   if (!show) return null;
 
   return (
-    <div className="fixed bottom-4 left-0 right-0 z-10">
-      <div
-        className="flex justify-center pl-8 transition-[margin] duration-300"
-        style={{
-          marginLeft: sidebarCollapsed ? '4rem' : '16rem'
-        }}
-      >
-        <div className="w-2/3 max-w-[750px] flex justify-center">
-          <div className="bg-white rounded-lg shadow-lg px-4 py-2 flex items-center space-x-2">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
-            <span className="text-sm text-gray-700">{message}</span>
-          </div>
-        </div>
+    <div className="pointer-events-none absolute inset-x-0 bottom-5 z-10 flex justify-center px-4" role="status">
+      <div className="flex h-11 items-center gap-2.5 rounded-full border bg-card px-4 shadow-[0_4px_20px_hsl(0_0%_0%/0.08)]">
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-foreground" aria-hidden="true"></div>
+        <span className="text-sm text-foreground">{message}</span>
       </div>
     </div>
   );
@@ -47,14 +38,14 @@ export function StatusOverlays({
       {/* Processing status overlay - shown after recording stops while finalizing transcription */}
       <StatusOverlay
         show={isProcessing}
-        message="Finalizing transcription..."
+        message="Finalizando a transcrição…"
         sidebarCollapsed={sidebarCollapsed}
       />
 
       {/* Saving status overlay - shown while saving transcript to database */}
       <StatusOverlay
         show={isSaving}
-        message="Saving transcript..."
+        message="Salvando a transcrição…"
         sidebarCollapsed={sidebarCollapsed}
       />
     </>

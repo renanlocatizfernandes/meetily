@@ -38,11 +38,11 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
         if (updateResult?.available) {
           setUpdate(updateResult);
         } else {
-          setError('Update no longer available');
+          setError('A atualização não está mais disponível');
         }
       }).catch((err) => {
         console.error('Failed to get update object:', err);
-        setError('Failed to prepare update: ' + (err.message || 'Unknown error'));
+        setError('Não foi possível preparar a atualização: ' + (err.message || 'erro desconhecido'));
       });
     } else {
       // Reset state when dialog closes
@@ -63,11 +63,11 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
           updateToUse = updateResult;
           setUpdate(updateResult);
         } else {
-          setError('Update not available');
+          setError('Atualização indisponível');
           return;
         }
       } catch (err: any) {
-        setError('Failed to get update: ' + (err.message || 'Unknown error'));
+        setError('Não foi possível obter a atualização: ' + (err.message || 'erro desconhecido'));
         return;
       }
     }
@@ -123,7 +123,7 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
       });
 
       console.log('[UpdateDialog] Update installed successfully');
-      toast.success('Update installed successfully. The app will restart...');
+      toast.success('Atualização instalada. O app será reiniciado...');
 
       // Mark download as complete before closing
       setIsDownloading(false);
@@ -135,9 +135,9 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
       await relaunch();
     } catch (err: any) {
       console.error('Update failed:', err);
-      setError(err.message || 'Failed to download or install update');
+      setError(err.message || 'Não foi possível baixar ou instalar a atualização');
       setIsDownloading(false);
-      toast.error('Update failed: ' + (err.message || 'Unknown error'));
+      toast.error('Falha na atualização: ' + (err.message || 'erro desconhecido'));
     }
   };
 
@@ -189,27 +189,27 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
           <DialogTitle className="flex items-center gap-2">
             {isDownloading ? (
               <>
-                <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-                Downloading Update
+                <Loader2 className="h-5 w-5 animate-spin text-brand" />
+                Baixando a atualização
               </>
             ) : error ? (
               <>
-                <AlertCircle className="h-5 w-5 text-red-600" />
-                Update Error
+                <AlertCircle className="h-5 w-5 text-danger" />
+                Erro na atualização
               </>
             ) : (
               <>
-                <Download className="h-5 w-5 text-blue-600" />
-                Update Available
+                <Download className="h-5 w-5 text-brand" />
+                Atualização disponível
               </>
             )}
           </DialogTitle>
           <DialogDescription>
             {isDownloading
-              ? 'Downloading the latest version...'
+              ? 'Baixando a versão mais recente...'
               : error
-              ? 'An error occurred while updating'
-              : `A new version (${updateInfo.version}) is available`}
+              ? 'Ocorreu um erro na atualização'
+              : `Há uma nova versão (${updateInfo.version}) disponível`}
           </DialogDescription>
         </DialogHeader>
 
@@ -218,24 +218,24 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
             <>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Current Version:</span>
+                  <span className="text-muted-foreground">Versão atual:</span>
                   <span className="font-medium">{updateInfo.currentVersion}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">New Version:</span>
-                  <span className="font-medium text-blue-600">{updateInfo.version}</span>
+                  <span className="text-muted-foreground">Nova versão:</span>
+                  <span className="font-medium text-brand">{updateInfo.version}</span>
                 </div>
                 {updateInfo.date && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Release Date:</span>
+                    <span className="text-muted-foreground">Data de lançamento:</span>
                     <span className="font-medium">{formatDate(updateInfo.date)}</span>
                   </div>
                 )}
               </div>
 
               {updateInfo.body && (
-                <div className="bg-gray-50 rounded-lg p-3 max-h-40 overflow-y-auto">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                <div className="bg-muted rounded-lg p-3 max-h-40 overflow-y-auto">
+                  <p className="text-sm text-foreground whitespace-pre-wrap">
                     {updateInfo.body}
                   </p>
                 </div>
@@ -246,14 +246,14 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
           {isDownloading && progress && (
             <div className="space-y-2">
               <div className="relative">
-                <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="w-full bg-accent rounded-full h-3">
                   <div
-                    className="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out"
+                    className="bg-primary h-3 rounded-full transition-all duration-150 ease-out"
                     style={{ width: `${Math.min(progress.percentage, 100)}%` }}
                   />
                 </div>
-                <div className="flex justify-between text-xs text-gray-600 mt-1">
-                  <span>{Math.round(progress.percentage)}% complete</span>
+                <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                  <span>{Math.round(progress.percentage)}% concluído</span>
                   {progress.total > 0 && (
                     <span>
                       {formatBytes(progress.downloaded)} / {formatBytes(progress.total)}
@@ -262,14 +262,14 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
                 </div>
               </div>
               <p className="text-sm text-muted-foreground text-center">
-                The app will restart automatically after installation
+                O app reinicia sozinho depois da instalação
               </p>
             </div>
           )}
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="bg-danger-soft border border-danger/30 rounded-lg p-3">
+              <p className="text-sm text-danger">{error}</p>
             </div>
           )}
         </div>
@@ -278,17 +278,17 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
           {!isDownloading && !error && (
             <>
               <Button variant="outline" onClick={() => handleOpenChange(false)}>
-                Later
+                Depois
               </Button>
-              <Button onClick={handleDownloadAndInstall} className="bg-blue-600 hover:bg-blue-700">
+              <Button onClick={handleDownloadAndInstall} className="bg-primary hover:bg-primary/90">
                 <Download className="h-4 w-4 mr-2" />
-                Download & Install
+                Baixar e instalar
               </Button>
             </>
           )}
           {error && (
             <Button variant="outline" onClick={() => handleOpenChange(false)}>
-              Close
+              Fechar
             </Button>
           )}
         </DialogFooter>

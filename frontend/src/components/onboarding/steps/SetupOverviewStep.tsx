@@ -30,12 +30,12 @@ export function SetupOverviewStep() {
     {
       number: 1,
       type: 'transcription',
-      title: 'Download Transcription Engine',
+      title: 'Baixar o motor de transcrição',
     },
     {
       number: 2,
       type: 'summarization',
-      title: 'Download Summarization Engine',
+      title: 'Baixar o motor de resumo',
     },
   ];
 
@@ -45,14 +45,14 @@ export function SetupOverviewStep() {
 
   return (
     <OnboardingContainer
-      title="Setup Overview"
-      description="Meetily requires that you download the Transcription & Summarization AI models for the software to work."
+      title="Visão geral da configuração"
+      description="O Meetily Live Plus precisa baixar os modelos de IA de transcrição e de resumo para funcionar."
       step={2}
       totalSteps={isMac ? 4 : 3}
     >
       <div className="flex flex-col items-center space-y-10">
         {/* Steps Card */}
-        <div className="w-full max-w-md bg-white rounded-lg border border-gray-200 p-4">
+        <div className="w-full max-w-md bg-card rounded-lg border border-border p-4">
           <div className="space-y-4">
             {steps.map((step, idx) => {
               return (
@@ -61,20 +61,20 @@ export function SetupOverviewStep() {
                   className={`flex items-start gap-4 p-1`}
                 >
                   <div className="flex-1 ml-1">
-                    <h3 className="font-medium text-gray-900 flex items-center gap-2">
-                        Step {step.number} :  {step.title}
+                    <h3 className="font-medium text-foreground flex items-center gap-2">
+                        Etapa {step.number}: {step.title}
 
                         {step.type === "summarization" && (
                             <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                <button className="text-gray-400 hover:text-gray-600">
+                                <button className="text-muted-foreground/80 hover:text-muted-foreground">
                                     <Info className="w-4 h-4" />
                                 </button>
                                 </TooltipTrigger>
                                 <TooltipContent className="max-w-xs text-sm">
-                                You can also select external AI providers like OpenAI, Claude, or
-                                Ollama for summary generation in settings.
+                                Você também pode escolher provedores externos de IA, como OpenAI, Claude ou
+                                Ollama, para gerar resumos nas configurações.
                                 </TooltipContent>
                             </Tooltip>
                             </TooltipProvider>
@@ -92,18 +92,18 @@ export function SetupOverviewStep() {
         <div className="w-full max-w-xs space-y-4">
           <Button
             onClick={handleContinue}
-            className="w-full h-11 bg-gray-900 hover:bg-gray-800 text-white"
+            className="w-full h-11 bg-primary hover:bg-primary/90 text-white"
           >
-            Let's Go
+            Vamos lá
           </Button>
           <div className="text-center">
             <a
               href="https://github.com/Zackriya-Solutions/meeting-minutes"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-gray-600 hover:underline"
+              className="text-xs text-muted-foreground hover:underline"
             >
-              Report issues on GitHub
+              Relatar problemas no GitHub
             </a>
           </div>
         </div>

@@ -2,13 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>This application needs access to your microphone to record meeting audio.</string>
-    <key>NSScreenCaptureUsageDescription</key>
-    <string>This application needs screen recording permission to capture system audio during meetings.</string>
-    <key>NSAudioCaptureUsageDescription</key>
-    <string>This application needs permission to capture system audio output for meeting transcription and recording.</string>
-    <key>com.apple.security.device.audio-input</key>
-    <true/>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>O Meetily Live Plus usa o áudio do sistema para transcrever os outros participantes separados do microfone.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>O Meetily Live Plus lê o título, a pauta e os participantes da próxima reunião neste Mac para preencher o contexto da reunião.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>O Meetily Live Plus usa o microfone para gravar e transcrever a sua fala na reunião.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>O Meetily Live Plus pode exportar tarefas de acompanhamento. Abrir no app Lembretes é opcional e nada é enviado automaticamente.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>O Meetily Live Plus usa a gravação de tela e de áudio do sistema para transcrever os outros participantes e reconhecer que uma reunião começou. O app não se esconde do compartilhamento de tela.</string>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
 </dict>
 </plist>

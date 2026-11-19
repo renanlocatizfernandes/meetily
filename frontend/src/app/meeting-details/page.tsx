@@ -6,7 +6,8 @@ import PageContent from "./page-content";
 import { useRouter, useSearchParams } from "next/navigation";
 import Analytics from "@/lib/analytics";
 import { invoke } from "@tauri-apps/api/core";
-import { LoaderIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useConfig } from "@/contexts/ConfigContext";
 import { usePaginatedTranscripts } from "@/hooks/usePaginatedTranscripts";
 import { parseSummaryContent } from "@/lib/summary-content";
@@ -18,6 +19,31 @@ interface MeetingDetailsResponse {
   updated_at: string;
   transcripts: Transcript[];
   folder_path?: string;
+}
+
+function MeetingDetailsSkeleton() {
+  return (
+    <div className="flex h-full flex-col" aria-busy="true" aria-label="Carregando reunião">
+      <div className="flex h-12 shrink-0 items-center border-b px-4">
+        <Skeleton className="h-4 w-56" />
+      </div>
+      <div className="flex min-h-0 flex-1">
+        <div className="hidden w-[30%] space-y-4 border-r p-4 md:block">
+          {[90, 70, 82, 60, 76].map((width, index) => (
+            <Skeleton key={index} className="h-3.5" style={{ width: `${width}%` }} />
+          ))}
+        </div>
+        <div className="flex-1 p-6">
+          <div className="mx-auto max-w-[820px] space-y-4">
+            <Skeleton className="h-6 w-2/5" />
+            {[96, 88, 92, 64, 90, 72].map((width, index) => (
+              <Skeleton key={index} className="h-3.5" style={{ width: `${width}%` }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function MeetingDetailsContent() {
@@ -249,25 +275,22 @@ function MeetingDetailsContent() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex h-full items-center justify-center px-6">
         <div className="text-center">
-          <p className="text-red-500 mb-4">{error}</p>
-          <button
-            onClick={() => router.push('/')}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Go Back
-          </button>
+          <p className="mb-3 text-sm text-muted-foreground">
+            {error === 'No meeting selected' ? 'Nenhuma reunião selecionada.' : `Não foi possível abrir a reunião: ${error}`}
+          </p>
+          <Button variant="outline" onClick={() => router.push('/')}>
+            Voltar para o início
+          </Button>
         </div>
       </div>
     );
   }
 
-  // Show loading spinner while initial data loads
+  // Esqueleto enquanto os dados iniciais carregam
   if (isLoading || !meetingDetails || meetingDetails.id !== meetingId) {
-    return <div className="flex items-center justify-center h-screen">
-      <LoaderIcon className="animate-spin size-6 " />
-    </div>;
+    return <MeetingDetailsSkeleton />;
   }
 
   return <PageContent
@@ -296,11 +319,7 @@ function MeetingDetailsContent() {
 
 export default function MeetingDetails() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center h-screen">
-        <LoaderIcon className="animate-spin size-6" />
-      </div>
-    }>
+    <Suspense fallback={<MeetingDetailsSkeleton />}>
       <MeetingDetailsContent />
     </Suspense>
   );

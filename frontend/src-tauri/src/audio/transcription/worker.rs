@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 // Sequence counter for transcript updates
 static SEQUENCE_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -27,6 +27,15 @@ pub fn reset_speech_detected_flag() {
 /// Filters empty/whitespace-only text; no confidence gating is applied.
 fn should_emit_transcript(text: &str) -> bool {
     !text.trim().is_empty()
+}
+
+/// Live transcript source. Microphone is the local user; system audio is everyone else.
+pub fn transcript_source_label(device_type: &crate::audio::recording_state::DeviceType) -> &'static str {
+    use crate::audio::recording_state::DeviceType;
+    match device_type {
+        DeviceType::Microphone => "mic",
+        DeviceType::System => "system",
+    }
 }
 
 fn should_log_transcript_snippet(accepted_count: u64) -> bool {
@@ -172,6 +181,10 @@ pub struct TranscriptUpdate {
     pub audio_start_time: f64, // Seconds from recording start (e.g., 125.3)
     pub audio_end_time: f64,   // Seconds from recording start (e.g., 128.6)
     pub duration: f64,          // Segment duration in seconds (e.g., 3.3)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker_label: Option<String>,
 }
 
 // NOTE: get_transcript_history and get_recording_meeting_name functions
@@ -220,6 +233,12 @@ pub fn start_transcription_task<R: Runtime>(
             worker_handles.push(tokio::spawn(async move {
                 let mut stats = WorkerLogStats::default();
                 let mut last_summary = Instant::now();
+                crate::speakers::clear_aliases();
+                if let Some(state) = app_clone.try_state::<crate::state::AppState>() {
+                    crate::speakers::load_voice_profiles(state.db_manager.pool()).await;
+                }
+                crate::speakers::prepare_voice_model(&app_clone).await;
+                let mut speakers = crate::speakers::SpeakerBook::default();
 
                 while let Some(chunk) = {
                     let mut receiver = work_receiver_clone.lock().await;
@@ -234,6 +253,17 @@ pub fn start_transcription_task<R: Runtime>(
 
                     let chunk_timestamp = chunk.timestamp;
                     let chunk_duration = chunk.data.len() as f64 / chunk.sample_rate as f64;
+                    let transcript_source = transcript_source_label(&chunk.device_type).to_string();
+                    let channel = match chunk.device_type {
+                        super::super::recording_state::DeviceType::Microphone => crate::speakers::Channel::Mic,
+                        super::super::recording_state::DeviceType::System => crate::speakers::Channel::System,
+                    };
+                    // None unless the optional voice model is installed and on; runs off this thread.
+                    let neural = crate::speakers::neural_embedding(&chunk.data, chunk.sample_rate).await;
+                    let mut assignment = speakers.assign_with(channel, &chunk.data, chunk.sample_rate, neural);
+                    if let Some(item) = assignment.as_mut() {
+                        crate::speakers::apply_profiles(item);
+                    }
                     let processing_started = Instant::now();
 
                     if !engine_clone.is_model_loaded().await {
@@ -272,7 +302,7 @@ pub fn start_transcription_task<R: Runtime>(
                                     let update = TranscriptUpdate {
                                         text: transcript,
                                         timestamp: format_current_timestamp(),
-                                        source: "Audio".to_string(),
+                                        source: transcript_source,
                                         sequence_id,
                                         chunk_start_time: chunk_timestamp,
                                         is_partial,
@@ -280,6 +310,8 @@ pub fn start_transcription_task<R: Runtime>(
                                         audio_start_time: chunk_timestamp,
                                         audio_end_time: chunk_timestamp + chunk_duration,
                                         duration: chunk_duration,
+                                        speaker_key: assignment.as_ref().map(|item| item.key.clone()),
+                                        speaker_label: assignment.as_ref().map(|item| item.label.clone()),
                                     };
 
                                     if app_clone.emit("transcript-update", &update).is_ok() {
@@ -525,6 +557,13 @@ fn format_recording_time(seconds: f64) -> String {
         fn drops_empty_and_whitespace_only() {
             assert!(!should_emit_transcript(""));
             assert!(!should_emit_transcript("   "));
+        }
+
+        #[test]
+        fn transcript_source_follows_the_capture_channel() {
+            use crate::audio::recording_state::DeviceType;
+            assert_eq!(transcript_source_label(&DeviceType::Microphone), "mic");
+            assert_eq!(transcript_source_label(&DeviceType::System), "system");
         }
 
         #[test]

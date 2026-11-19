@@ -646,6 +646,13 @@ async fn run_import<R: Runtime>(
     )
     .await?;
 
+    // Imported audio is organized like a recording (no-op when the setting is off).
+    crate::organize::schedule_auto_organize(
+        &app,
+        &meeting_id,
+        crate::organize::AutoTrigger::TranscriptSaved,
+    );
+
     // Write transcripts.json and metadata.json to the meeting folder
     emit_progress(&app, "saving", 90, "Writing transcript files...");
 
@@ -1182,6 +1189,8 @@ mod tests {
                 audio_start_time: Some(0.0),
                 audio_end_time: Some(1.5),
                 duration: Some(1.5),
+                speaker: None,
+                speaker_key: None,
             },
             TranscriptSegment {
                 id: "t-2".to_string(),
@@ -1190,6 +1199,8 @@ mod tests {
                 audio_start_time: Some(2.0),
                 audio_end_time: Some(3.5),
                 duration: Some(1.5),
+                speaker: None,
+                speaker_key: None,
             },
         ];
 

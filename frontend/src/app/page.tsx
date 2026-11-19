@@ -20,6 +20,13 @@ import { TranscriptRecovery } from '@/components/TranscriptRecovery';
 import { indexedDBService } from '@/services/indexedDBService';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { LiveAssistPanel } from '@/components/LiveAssist/LiveAssistPanel';
+import { AutoRecordBanner } from '@/components/AutoRecord/AutoRecordBanner';
+import { RecursosBar } from '@/components/Recursos/RecursosBar';
+import { useLiveAssist } from '@/contexts/LiveAssistContext';
+import { TopBar } from '@/components/Shell/TopBar';
+import { IconButton } from '@/components/ui/icon-button';
+import { Copy, Languages, SlidersHorizontal } from 'lucide-react';
 
 export default function Home() {
   // Local page state (not moved to contexts)
@@ -28,7 +35,7 @@ export default function Home() {
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
 
   // Use contexts for state management
-  const { meetingTitle } = useTranscripts();
+  const { meetingTitle, transcripts, copyTranscript } = useTranscripts();
   const { transcriptModelConfig, selectedDevices } = useConfig();
   const recordingState = useRecordingState();
 
@@ -60,6 +67,7 @@ export default function Home() {
   } = useTranscriptRecovery();
 
   const router = useRouter();
+  const { settings: liveAssistSettings, status: liveAssistStatus, panelOpen, setPanelOpen } = useLiveAssist();
 
   useEffect(() => {
     // Track page view
@@ -123,12 +131,12 @@ export default function Home() {
       const result = await recoverMeeting(meetingId);
 
       if (result.success) {
-        toast.success('Meeting recovered successfully!', {
+        toast.success('Reunião recuperada', {
           description: result.audioRecoveryStatus?.status === 'success'
-            ? 'Transcripts and audio recovered'
-            : 'Transcripts recovered (no audio available)',
+            ? 'Transcrição e áudio recuperados'
+            : 'Transcrição recuperada (sem áudio disponível)',
           action: result.meetingId ? {
-            label: 'View Meeting',
+            label: 'Ver reunião',
             onClick: () => {
               router.push(`/meeting-details?id=${result.meetingId}`);
             }
@@ -152,8 +160,8 @@ export default function Home() {
         }
       }
     } catch (error) {
-      toast.error('Failed to recover meeting', {
-        description: error instanceof Error ? error.message : 'Unknown error occurred',
+      toast.error('Não foi possível recuperar a reunião', {
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
       });
       throw error;
     }
@@ -188,8 +196,13 @@ export default function Home() {
   // Computed values using global status
   const isProcessingStop = status === RecordingStatus.PROCESSING_TRANSCRIPTS || isProcessing;
 
+  const isHelpVisible = recordingState.isRecording && liveAssistSettings.enabled;
+  const elapsedSeconds = Math.max(0, Math.floor(recordingState.activeDuration ?? 0));
+  const elapsedLabel = `${String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')}:${String(elapsedSeconds % 60).padStart(2, '0')}`;
+  const hasLiveTitle = recordingState.isRecording && meetingTitle && meetingTitle !== '+ New Call';
+
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex h-full flex-col bg-background">
       {/* All Modals supported*/}
       <SettingsModals
         modals={modals}
@@ -206,43 +219,93 @@ export default function Home() {
         onDelete={deleteRecoverableMeeting}
         onLoadPreview={loadMeetingTranscripts}
       />
-      <div className="flex flex-1 overflow-hidden">
+      <TopBar
+        title={<span className="block truncate">{hasLiveTitle ? meetingTitle : 'Nova reunião'}</span>}
+        chips={recordingState.isRecording ? (
+          <span className="inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-xs text-muted-foreground">
+            <span className={`h-1.5 w-1.5 rounded-full bg-recording ${recordingState.isPaused ? '' : 'animate-pulse'}`} aria-hidden="true" />
+            {recordingState.isPaused ? 'Pausada' : 'Gravando'}
+          </span>
+        ) : undefined}
+        actions={
+          <>
+            {transcripts?.length > 0 && (
+              <IconButton label="Copiar transcrição" onClick={copyTranscript}>
+                <Copy />
+              </IconButton>
+            )}
+            {transcriptModelConfig.provider === 'localWhisper' && (
+              <IconButton label="Idioma da transcrição" onClick={() => showModal('languageSettings')}>
+                <Languages />
+              </IconButton>
+            )}
+          </>
+        }
+      />
+      <AutoRecordBanner />
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <TranscriptPanel
           isProcessingStop={isProcessingStop}
           isStopping={isStopping}
           showModal={showModal}
         />
+        <LiveAssistPanel />
 
-        {/* Recording controls - only show when permissions are granted or already recording and not showing status messages */}
+        {/* Barra de gravação: sempre visível, centralizada embaixo, como um campo de mensagem */}
         {(hasMicrophone || isRecording) &&
           status !== RecordingStatus.PROCESSING_TRANSCRIPTS &&
           status !== RecordingStatus.SAVING && (
-            <div className="fixed bottom-12 left-0 right-0 z-10">
+            <div className="pointer-events-none absolute inset-x-0 bottom-5 z-10 flex justify-center px-4">
               <div
-                className="flex justify-center pl-8 transition-[margin] duration-300"
-                style={{
-                  marginLeft: sidebarCollapsed ? '4rem' : '16rem'
-                }}
+                role="toolbar"
+                aria-label="Controles de gravação"
+                className="pointer-events-auto flex h-14 max-w-full items-center gap-1 rounded-full border bg-card pl-3 pr-2 shadow-[0_4px_20px_hsl(0_0%_0%/0.08)]"
               >
-                <div className="w-2/3 max-w-[750px] flex justify-center">
-                  <div className="bg-white rounded-full shadow-lg flex items-center">
-                    <RecordingControls
-                      isRecording={recordingState.isRecording}
-                      onRecordingStop={(callApi = true) => handleRecordingStop(callApi)}
-                      onRecordingStart={handleRecordingStart}
-                      onTranscriptReceived={() => { }} // Not actually used by RecordingControls
-                      onStopInitiated={() => setIsStopping(true)}
-                      barHeights={barHeights}
-                      onTranscriptionError={(message) => {
-                        showModal('errorAlert', message);
-                      }}
-                      isRecordingDisabled={isRecordingDisabled}
-                      isParentProcessing={isProcessingStop}
-                      selectedDevices={selectedDevices}
-                      meetingName={meetingTitle}
-                    />
-                  </div>
-                </div>
+                <RecursosBar />
+                {isHelpVisible && (
+                  <button
+                    type="button"
+                    aria-pressed={panelOpen}
+                    onClick={() => setPanelOpen(!panelOpen)}
+                    className={`inline-flex h-8 items-center gap-2 rounded-full px-3 text-xs font-medium transition-colors duration-150 ${
+                      panelOpen ? 'bg-brand-soft text-brand' : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                    }`}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${liveAssistStatus.busy ? 'bg-amber-500' : 'bg-emerald-500'}`} aria-hidden="true" />
+                    Ajuda ao vivo
+                  </button>
+                )}
+                <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+                <RecordingControls
+                  isRecording={recordingState.isRecording}
+                  onRecordingStop={(callApi = true) => handleRecordingStop(callApi)}
+                  onRecordingStart={handleRecordingStart}
+                  onTranscriptReceived={() => { }} // Not actually used by RecordingControls
+                  onStopInitiated={() => setIsStopping(true)}
+                  barHeights={barHeights}
+                  onTranscriptionError={(message) => {
+                    showModal('errorAlert', message);
+                  }}
+                  isRecordingDisabled={isRecordingDisabled}
+                  isParentProcessing={isProcessingStop}
+                  selectedDevices={selectedDevices}
+                  meetingName={meetingTitle}
+                />
+                <span
+                  className={`w-12 text-center text-[13px] tabular-nums ${recordingState.isRecording ? 'text-foreground' : 'text-muted-foreground'}`}
+                  aria-label={recordingState.isRecording ? `Tempo de gravação ${elapsedLabel}` : 'Gravação parada'}
+                >
+                  {recordingState.isRecording ? elapsedLabel : '00:00'}
+                </span>
+                <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+                <IconButton
+                  label={recordingState.isRecording ? 'Dispositivos de áudio (bloqueado durante a gravação)' : 'Dispositivos de áudio'}
+                  tooltipSide="top"
+                  onClick={() => showModal('deviceSettings')}
+                  className="rounded-full"
+                >
+                  <SlidersHorizontal />
+                </IconButton>
               </div>
             </div>
           )}

@@ -188,7 +188,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         setModels(modelList);
         setError('');
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load Ollama models');
+        setError(err instanceof Error ? err.message : 'Não foi possível carregar os modelos do Ollama');
         console.error('Error loading models:', err);
       }
     };
@@ -362,7 +362,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         console.error('Failed to load device preferences:', error);
-        toast.error('Could not load saved recording devices', { description: String(error) });
+        toast.error('Não foi possível carregar os dispositivos de gravação salvos', { description: String(error) });
       }
     };
     loadDevicePreferences();

@@ -37,6 +37,11 @@ pub(crate) use perf_trace;
 
 // Declare audio module
 pub mod analytics;
+pub mod assist_plus;
+pub mod auto_record;
+pub mod live_assist;
+pub mod model_advisor;
+pub mod speakers;
 pub mod api;
 pub mod audio;
 pub mod config;
@@ -46,11 +51,13 @@ pub mod doodle;
 pub mod notifications;
 pub mod ollama;
 pub mod onboarding;
+pub mod organize;
 pub mod openai;
 pub mod anthropic;
 pub mod groq;
 pub mod openrouter;
 pub mod parakeet_engine;
+pub mod recording_marker;
 pub mod state;
 pub mod summary;
 pub mod tray;
@@ -188,6 +195,10 @@ fn split_startup_logger<R: Runtime>(
     })
 }
 static RECORDING_FLAG: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn set_recording_flag(active: bool) {
+    RECORDING_FLAG.store(active, Ordering::SeqCst);
+}
 
 #[cfg(target_os = "windows")]
 static ONNX_RUNTIME_INIT_ERROR: std::sync::OnceLock<String> = std::sync::OnceLock::new();
@@ -571,8 +582,8 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_log::Builder::new().skip_logger().build())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(whisper_engine::parallel_commands::ParallelProcessorState::new())
         .manage(Arc::new(RwLock::new(
             None::<notifications::manager::NotificationManager<tauri::Wry>>,
@@ -595,6 +606,13 @@ pub fn run() {
             }
 
             log::info!("Starting application...");
+            recording_marker::start(_app.handle());
+
+            #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
+            {
+                auto_record::start(_app.handle().clone());
+                live_assist::shortcut::init(_app.handle());
+            }
 
             #[cfg(target_os = "windows")]
             match _app.path().resolve(
@@ -892,6 +910,54 @@ pub fn run() {
             audio::recording_preferences::get_available_audio_backends,
             audio::recording_preferences::get_current_audio_backend,
             audio::recording_preferences::set_audio_backend,
+            live_assist::commands::get_live_assist_settings,
+            live_assist::commands::save_live_assist_settings,
+            live_assist::commands::open_live_assist_window,
+            live_assist::commands::get_live_assist_context_settings,
+            live_assist::commands::save_live_assist_context_settings,
+            live_assist::commands::get_live_assist_context,
+            live_assist::shortcut::get_live_assist_shortcut,
+            live_assist::shortcut::set_live_assist_shortcut,
+            live_assist::benchmark::benchmark_live_assist_models,
+            live_assist::benchmark::cancel_live_assist_benchmark,
+            auto_record::get_auto_record_settings,
+            auto_record::save_auto_record_settings,
+            auto_record::dismiss_auto_recording,
+            auto_record::auto_record_watch,
+            auto_record::confirm_auto_recording,
+            auto_record::get_meeting_end_settings,
+            auto_record::save_meeting_end_settings,
+            auto_record::respond_meeting_end,
+            assist_plus::privacy::get_privacy_onboarding,
+            assist_plus::privacy::complete_privacy_onboarding,
+            speakers::rename_speaker,
+            speakers::neural::get_voice_model_status,
+            speakers::neural::download_voice_model,
+            speakers::neural::cancel_voice_model_download,
+            speakers::neural::delete_voice_model,
+            speakers::neural::set_voice_model_enabled,
+            speakers::neural::list_voice_models,
+            speakers::neural::select_voice_model,
+            model_advisor::model_advisor_get_report,
+            model_advisor::ollama_pull::model_advisor_pull_ollama_model,
+            model_advisor::ollama_pull::model_advisor_cancel_ollama_pull,
+            assist_plus::commands::get_feature_toggles,
+            assist_plus::commands::save_feature_toggles,
+            assist_plus::commands::export_action_ics,
+            assist_plus::commands::recall_meetings,
+            assist_plus::commands::prepare_from_calendar,
+            assist_plus::commands::prepare_from_ics,
+            assist_plus::commands::search_meetings,
+            assist_plus::commands::meeting_scoreboard,
+            assist_plus::commands::draft_followup,
+            organize::commands::list_meetings_organized,
+            organize::commands::organize_meeting,
+            organize::commands::update_meeting_classification,
+            organize::commands::list_meeting_facets,
+            organize::commands::get_organization_settings,
+            organize::commands::save_organization_settings,
+            organize::commands::organize_all_meetings,
+            organize::commands::cancel_organize_all,
             audio::recording_preferences::get_audio_backend_info,
             // Language preference commands
             set_language_preference,

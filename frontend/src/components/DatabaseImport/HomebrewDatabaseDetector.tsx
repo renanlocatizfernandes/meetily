@@ -61,7 +61,7 @@ export function HomebrewDatabaseDetector({ onImportSuccess, onDecline }: Homebre
         legacyDbPath: detectedPath,
       });
 
-      toast.success('Database imported successfully! Reloading...');
+      toast.success('Banco de dados importado. Recarregando...');
 
       // Wait 1 second for user to see success, then reload window to refresh all data
       setTimeout(() => {
@@ -69,7 +69,7 @@ export function HomebrewDatabaseDetector({ onImportSuccess, onDecline }: Homebre
       }, 1000);
     } catch (error) {
       console.error('Error importing database:', error);
-      toast.error(`Import failed: ${error}`);
+      toast.error(`Falha na importação: ${error}`);
       setIsImporting(false);
     }
   };
@@ -90,29 +90,29 @@ export function HomebrewDatabaseDetector({ onImportSuccess, onDecline }: Homebre
   };
 
   return (
-    <div className="mb-4 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg">
+    <div className="mb-4 p-4 bg-brand-soft border-2 border-primary/30 rounded-lg">
       <div className="flex items-start gap-3">
-        <Database className="h-6 w-6 text-blue-600 mt-0.5 flex-shrink-0" />
+        <Database className="h-6 w-6 text-brand mt-0.5 flex-shrink-0" />
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <AlertCircle className="h-4 w-4 text-blue-600" />
-            <h3 className="text-sm font-semibold text-blue-900">
-              Previous Meetily Installation Detected!
+            <AlertCircle className="h-4 w-4 text-brand" />
+            <h3 className="text-sm font-semibold text-brand">
+              Instalação anterior do Meetily encontrada
             </h3>
           </div>
-          <p className="text-sm text-blue-800 mb-2">
-            We found an existing database from your previous Meetily installation (Python backend version).
+          <p className="text-sm text-brand mb-2">
+            Encontramos um banco de dados da sua instalação anterior do Meetily (versão com backend em Python).
           </p>
-          <div className="bg-white/50 rounded p-2 mb-3">
-            <p className="text-xs text-blue-700 font-mono break-all">
+          <div className="bg-card/50 rounded p-2 mb-3">
+            <p className="text-xs text-brand font-mono break-all">
               {detectedPath}
             </p>
-            <p className="text-xs text-blue-600 mt-1">
-              Size: {formatFileSize(dbSize)}
+            <p className="text-xs text-brand mt-1">
+              Tamanho: {formatFileSize(dbSize)}
             </p>
           </div>
-          <p className="text-sm text-blue-800 mb-3">
-            Would you like to import your previous meetings, transcripts, and summaries?
+          <p className="text-sm text-brand mb-3">
+            Quer importar as reuniões, transcrições e resumos anteriores?
           </p>
           
           {/* Yes/No Buttons */}
@@ -120,17 +120,17 @@ export function HomebrewDatabaseDetector({ onImportSuccess, onDecline }: Homebre
             <button
               onClick={handleYes}
               disabled={isImporting}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-muted-foreground/50 disabled:cursor-not-allowed transition-colors"
             >
               {isImporting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Importing...</span>
+                  <span>Importando...</span>
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="h-4 w-4" />
-                  <span>Yes, Import</span>
+                  <span>Sim, importar</span>
                 </>
               )}
             </button>
@@ -138,9 +138,9 @@ export function HomebrewDatabaseDetector({ onImportSuccess, onDecline }: Homebre
             <button
               onClick={handleNo}
               disabled={isImporting}
-              className="flex-1 px-4 py-2 border-2 border-blue-400 text-blue-700 rounded-lg hover:bg-blue-100 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 px-4 py-2 border-2 border-primary text-brand rounded-lg hover:bg-brand-soft disabled:bg-muted disabled:cursor-not-allowed transition-colors"
             >
-              No, Browse Manually
+              Não, procurar manualmente
             </button>
           </div>
         </div>

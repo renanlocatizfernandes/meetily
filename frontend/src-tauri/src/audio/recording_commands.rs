@@ -611,6 +611,8 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
                     display_time: update.timestamp.clone(), // Use wall-clock timestamp for display
                     confidence: update.confidence,
                     sequence_id: update.sequence_id,
+                    speaker: update.speaker_label.clone(),
+                    speaker_key: update.speaker_key.clone(),
                 };
 
                 // Save to recording manager
@@ -625,6 +627,8 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
         *global_listener = Some(listener_id);
         info!("✅ Transcript-update event listener registered for history persistence");
     }
+
+    crate::live_assist::on_recording_started(app.clone());
 
     // Emit success event
     app.emit("recording-started", serde_json::json!({
@@ -825,6 +829,8 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
                     display_time: update.timestamp.clone(), // Use wall-clock timestamp for display
                     confidence: update.confidence,
                     sequence_id: update.sequence_id,
+                    speaker: update.speaker_label.clone(),
+                    speaker_key: update.speaker_key.clone(),
                 };
 
                 // Save to recording manager
@@ -839,6 +845,8 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
         *global_listener = Some(listener_id);
         info!("✅ Transcript-update event listener registered for history persistence");
     }
+
+    crate::live_assist::on_recording_started(app.clone());
 
     // Emit success event
     app.emit("recording-started", serde_json::json!({
@@ -944,6 +952,7 @@ async fn stop_recording_for_session<R: Runtime>(
             info!("✅ Transcript-update listener removed");
         }
     }
+    crate::live_assist::on_recording_stopped(&app);
 
     // Step 2: Signal transcription workers to finish processing ALL queued chunks
     let _ = app.emit(

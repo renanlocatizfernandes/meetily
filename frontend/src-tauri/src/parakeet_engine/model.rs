@@ -486,3 +486,69 @@ impl ParakeetModel {
         Ok(timestamped_result)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn read_wav_16k_mono(path: &Path) -> Vec<f32> {
+        let wav = std::fs::read(path).unwrap();
+        let mut offset = 12;
+        while offset + 8 <= wav.len() {
+            let size = u32::from_le_bytes(wav[offset + 4..offset + 8].try_into().unwrap()) as usize;
+            if &wav[offset..offset + 4] == b"data" {
+                let end = (offset + 8 + size).min(wav.len());
+                return wav[offset + 8..end]
+                    .chunks_exact(2)
+                    .map(|pair| i16::from_le_bytes([pair[0], pair[1]]) as f32 / 32_768.0)
+                    .collect();
+            }
+            offset += 8 + size + (size & 1);
+        }
+        panic!("no data chunk in {}", path.display());
+    }
+
+    /// Runs a real model on real recordings. Not part of the normal test
+    /// run: it needs a model folder and WAV files, which are not in the
+    /// repository. Prints one `TEXT<tab>file<tab>transcript` line per file.
+    ///
+    /// ```text
+    /// MEETILY_PARAKEET_DIR=/folder/with/the/model/files \
+    /// MEETILY_PARAKEET_WAV=/speech.wav or /folder/of/wavs   (16 kHz mono PCM16) \
+    /// MEETILY_PARAKEET_QUANTIZED=1       (0 for the FP32 files) \
+    /// cargo test --features metal --lib parakeet_engine::model::tests::real_model -- --ignored --nocapture
+    /// ```
+    #[test]
+    #[ignore]
+    fn real_model_transcribes_recordings() {
+        let dir = std::env::var("MEETILY_PARAKEET_DIR").expect("set MEETILY_PARAKEET_DIR");
+        let source = std::path::PathBuf::from(std::env::var("MEETILY_PARAKEET_WAV").expect("set MEETILY_PARAKEET_WAV"));
+        let quantized = std::env::var("MEETILY_PARAKEET_QUANTIZED").map(|value| value != "0").unwrap_or(true);
+        let mut files: Vec<std::path::PathBuf> = if source.is_dir() {
+            std::fs::read_dir(&source)
+                .unwrap()
+                .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+                .filter(|path| path.extension().is_some_and(|extension| extension == "wav"))
+                .collect()
+        } else {
+            vec![source]
+        };
+        files.sort();
+        assert!(!files.is_empty());
+
+        let started = std::time::Instant::now();
+        let mut model = ParakeetModel::new(&dir, quantized).unwrap();
+        println!("loaded in {:?}", started.elapsed());
+        let (mut audio_seconds, mut spent) = (0.0f32, std::time::Duration::ZERO);
+        for file in &files {
+            let samples = read_wav_16k_mono(file);
+            audio_seconds += samples.len() as f32 / 16_000.0;
+            let started = std::time::Instant::now();
+            let result = model.transcribe_samples(samples).unwrap();
+            spent += started.elapsed();
+            println!("TEXT\t{}\t{}", file.file_name().unwrap().to_string_lossy(), result.text);
+            assert!(!result.text.trim().is_empty());
+        }
+        println!("{audio_seconds:.1} s of audio in {spent:?}");
+    }
+}

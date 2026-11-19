@@ -18,6 +18,21 @@ import { useTemplates } from '@/hooks/meeting-details/useTemplates';
 import { useCopyOperations } from '@/hooks/meeting-details/useCopyOperations';
 import { useMeetingOperations } from '@/hooks/meeting-details/useMeetingOperations';
 import { useConfig } from '@/contexts/ConfigContext';
+import { MoreHorizontal, Tags } from 'lucide-react';
+import { TopBar } from '@/components/Shell/TopBar';
+import { InlineTitle, type InlineTitleHandle } from '@/components/Shell/InlineTitle';
+import { IconButton } from '@/components/ui/icon-button';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { MeetingChips } from '@/components/Organize/MeetingChips';
+import { MeetingMenuItems, useMeetingActions } from '@/components/Organize/MeetingActions';
+import { formatDuration, formatMeetingWhen, plainMeetingOrg } from '@/lib/organize';
 
 export default function PageContent({
   meeting,
@@ -68,7 +83,9 @@ export default function PageContent({
   const autoGenerationStartedMeetingIdRef = useRef<string | null>(null);
 
   // Sidebar context
-  const { serverAddress } = useSidebar();
+  const { serverAddress, organizedMeetings, organizeAvailable } = useSidebar();
+  const { actions: meetingActions, dialogs: meetingDialogs } = useMeetingActions();
+  const titleRef = useRef<InlineTitleHandle>(null);
 
   // Get model config from ConfigContext
   const { modelConfig, setModelConfig, isModelConfigLoading } = useConfig();
@@ -109,10 +126,10 @@ export default function PageContent({
       const { emit } = await import('@tauri-apps/api/event');
       await emit('model-config-updated', config);
 
-      toast.success('Model settings saved successfully');
+      toast.success('Configurações do modelo salvas');
     } catch (error) {
       console.error('Failed to save model config:', error);
-      toast.error('Failed to save model settings');
+      toast.error('Não foi possível salvar as configurações do modelo');
     }
   };
 
@@ -145,6 +162,30 @@ export default function PageContent({
   useEffect(() => {
     Analytics.trackPageView('meeting_details');
   }, []);
+
+  // Linha organizada desta reunião (cliente, categoria, fixada); sem o recurso, só id e título
+  const organizedRow = organizedMeetings.find((item) => item.id === meeting.id);
+  const meetingRow = {
+    ...(organizedRow ?? plainMeetingOrg(meeting.id, meetingData.meetingTitle)),
+    title: meetingData.meetingTitle,
+    createdAt: organizedRow?.createdAt || meeting.created_at || '',
+  };
+
+  // Um título novo vindo da barra lateral ou do título automático aparece aqui também
+  const sidebarTitle = organizedRow?.title;
+  const setPageTitle = meetingData.setMeetingTitle;
+  const lastSidebarTitleRef = useRef(sidebarTitle);
+  useEffect(() => {
+    // Só reage a mudanças depois de abrir a página: o título recém-carregado do banco vale mais que a lista
+    if (sidebarTitle && lastSidebarTitleRef.current !== undefined && sidebarTitle !== lastSidebarTitleRef.current) {
+      setPageTitle(sidebarTitle);
+    }
+    lastSidebarTitleRef.current = sidebarTitle;
+  }, [sidebarTitle, setPageTitle]);
+
+  const meetingMeta = [formatMeetingWhen(meetingRow.createdAt), formatDuration(meetingRow.durationSeconds)]
+    .filter(Boolean)
+    .join(' · ');
 
   useEffect(() => {
     if (
@@ -187,11 +228,58 @@ export default function PageContent({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="flex flex-col h-screen min-w-0 bg-gray-50"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.14, ease: 'easeOut' }}
+      className="flex h-full min-w-0 flex-col bg-background"
     >
+      <TopBar
+        title={
+          <InlineTitle
+            ref={titleRef}
+            value={meetingData.meetingTitle}
+            onSave={async (title) => {
+              const saved = await meetingActions.saveTitle(meeting.id, title, 'meeting_details');
+              if (saved) meetingData.setMeetingTitle(title);
+              return saved;
+            }}
+          />
+        }
+        chips={
+          <>
+            <MeetingChips meeting={meetingRow} onClick={organizeAvailable ? () => meetingActions.classify(meetingRow) : undefined} />
+            {meetingMeta && <span className="hidden truncate text-xs text-muted-foreground lg:inline">{meetingMeta}</span>}
+          </>
+        }
+        actions={
+          <>
+            {organizeAvailable && !meetingRow.client && !meetingRow.category && (
+              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => meetingActions.classify(meetingRow)}>
+                <Tags />
+                Classificar
+              </Button>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <IconButton label="Mais ações">
+                  <MoreHorizontal />
+                </IconButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <MeetingMenuItems
+                  meeting={meetingRow}
+                  actions={meetingActions}
+                  organizeAvailable={organizeAvailable}
+                  Item={DropdownMenuItem}
+                  Separator={DropdownMenuSeparator}
+                  onRename={() => setTimeout(() => titleRef.current?.startEditing(), 0)}
+                />
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+      />
+      {meetingDialogs}
       <div className="flex flex-1 min-w-0 overflow-hidden">
         <MeetingDetailsSplitView
           activeTab={activeTab}
@@ -218,6 +306,14 @@ export default function PageContent({
               meetingId={meeting.id}
               meetingFolderPath={meeting.folder_path}
               onRefetchTranscripts={onRefetchTranscripts}
+              onRenameSpeaker={async (speakerKey, displayName) => {
+                await invoke('rename_speaker', {
+                  meetingId: meeting.id,
+                  speakerKey,
+                  displayName,
+                });
+                await onRefetchTranscripts?.();
+              }}
             />
           }
           summary={

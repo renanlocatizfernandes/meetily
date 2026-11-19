@@ -138,6 +138,10 @@ pub struct MeetingTranscript {
     pub audio_end_time: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker_key: Option<String>,
 }
 
 /// Meeting metadata without transcripts (for pagination)
@@ -189,6 +193,11 @@ pub struct TranscriptSegment {
     pub audio_end_time: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
+    /// "mic" or "system" when the live pipeline separated the channels.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker_key: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -895,15 +904,23 @@ pub async fn api_get_meeting_transcripts<R: Runtime>(
             );
 
             // Convert Transcript to MeetingTranscript
+            let aliases = TranscriptsRepository::speaker_aliases(pool, &meeting_id)
+                .await
+                .unwrap_or_default();
             let meeting_transcripts = transcripts
                 .into_iter()
-                .map(|t| MeetingTranscript {
-                    id: t.id,
-                    text: t.transcript,
-                    timestamp: t.timestamp,
-                    audio_start_time: t.audio_start_time,
-                    audio_end_time: t.audio_end_time,
-                    duration: t.duration,
+                .map(|t| {
+                    let speaker_key = t.speaker_key.clone();
+                    MeetingTranscript {
+                        id: t.id,
+                        text: t.transcript,
+                        timestamp: t.timestamp,
+                        audio_start_time: t.audio_start_time,
+                        audio_end_time: t.audio_end_time,
+                        duration: t.duration,
+                        speaker: TranscriptsRepository::display_speaker(&aliases, t.speaker, t.speaker_key),
+                        speaker_key,
+                    }
                 })
                 .collect::<Vec<_>>();
 
@@ -994,6 +1011,13 @@ pub async fn api_save_transcript<R: Runtime>(
             log_info!(
                 "Successfully saved transcript and created meeting with id: {}",
                 meeting_id
+            );
+            // Title and classification are worked out in the background (no-op
+            // when "organizar automaticamente" is off).
+            crate::organize::schedule_auto_organize(
+                &_app,
+                &meeting_id,
+                crate::organize::AutoTrigger::TranscriptSaved,
             );
             Ok(serde_json::json!({
                 "status": "success",

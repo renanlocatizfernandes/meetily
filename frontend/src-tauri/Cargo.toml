@@ -105,6 +105,7 @@ silero_rs = { git = "https://github.com/emotechlab/silero-rs", rev = "26a6460", 
 # Parakeet (ONNX-based fast transcription) dependencies
 ort = { version = "2.0.0-rc.10" }  # ONNX Runtime for Parakeet models
 thiserror = "2.0.16"                # Error handling for Parakeet
+sha2 = "0.10"                       # Checks the downloaded voice model (already built for sqlx and build.rs)
 
 # Async
 tokio = { version = "1.32.0", features = ["full", "tracing"] }
@@ -155,6 +156,7 @@ tauri-plugin-store = "2.4.0"
 tauri-plugin-notification = "2.3.1"
 tauri-plugin-updater = "2.3.0"
 tauri-plugin-process = "2.3.0"
+tauri-plugin-global-shortcut = "=2.3.1"
 
 # Desktop-only single instance guard
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]

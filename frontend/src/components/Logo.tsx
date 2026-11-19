@@ -54,16 +54,17 @@ const Logo = React.forwardRef<HTMLButtonElement, LogoProps>(
             <button
               ref={ref}
               type="button"
-              className="w-full text-lg text-center border rounded-full bg-blue-50 border-white font-semibold text-gray-700 mb-2 block items-center cursor-pointer hover:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md px-1.5 text-sm font-semibold tracking-tight text-foreground transition-colors duration-150 hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="About Meetily"
             >
               <span>Meetily</span>
+              <i className="font-normal not-italic text-muted-foreground">Live</i>
             </button>
           </DialogTrigger>
         )}
         <DialogContent>
           <VisuallyHidden>
-            <DialogTitle>About Meetily</DialogTitle>
+            <DialogTitle>Sobre o Meetily Live Plus</DialogTitle>
           </VisuallyHidden>
           <About />
         </DialogContent>

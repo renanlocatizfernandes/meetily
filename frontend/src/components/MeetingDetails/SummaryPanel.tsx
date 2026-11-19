@@ -104,11 +104,11 @@ export function SummaryPanel({
   activeMeetingIdRef.current = meeting.id;
   const { addRecent } = useRecentLanguages();
 
-  const effectiveLangLabel = summaryLang ? labelForCode(summaryLang) : 'Auto';
+  const effectiveLangLabel = summaryLang ? labelForCode(summaryLang) : 'Automático';
   const isLocalFallbackLanguage = summaryLangStorage === 'local_fallback';
   const autoSubtitle = isLocalFallbackLanguage
-    ? 'Saved on this device for folderless meetings'
-    : 'Uses dominant transcript language';
+    ? 'Salvo neste dispositivo para reuniões sem pasta'
+    : 'Usa o idioma predominante da transcrição';
 
   useEffect(() => {
     let cancelled = false;
@@ -124,8 +124,8 @@ export function SummaryPanel({
         }
       } catch (err) {
         console.error('Failed to load summary language:', err);
-        toast.warning('Could not load saved summary language', {
-          description: 'Using Auto until meeting metadata can be read.',
+        toast.warning('Não foi possível carregar o idioma do resumo salvo', {
+          description: 'Usando Automático até ser possível ler os dados da reunião.',
         });
         if (!cancelled && languageLoadVersionRef.current === loadVersion) setSummaryLang(null);
       }
@@ -157,8 +157,8 @@ export function SummaryPanel({
             setSummaryLang(saved.language);
             setSummaryLangStorage(saved.storage);
             if (saved.storage === 'local_fallback') {
-              toast.info('Summary language saved on this device', {
-                description: 'This meeting has no recording folder, so the preference cannot be written to meeting metadata.',
+              toast.info('Idioma do resumo salvo neste dispositivo', {
+                description: 'Esta reunião não tem pasta de gravação, então a preferência não pode ser gravada nos dados da reunião.',
               });
             }
             if (request.language) {
@@ -175,7 +175,7 @@ export function SummaryPanel({
             activeMeetingIdRef.current === request.meetingId
           ) {
             console.error('Failed to persist summary language:', err);
-            toast.error('Failed to save summary language');
+            toast.error('Não foi possível salvar o idioma do resumo');
             setSummaryLang(request.rollback.language);
             setSummaryLangStorage(request.rollback.storage);
             return;
@@ -219,12 +219,12 @@ export function SummaryPanel({
         <Button
           variant="outline"
           size="sm"
-          title={`Summary language: ${effectiveLangLabel}${isLocalFallbackLanguage ? ' (saved on this device)' : ''}`}
-          aria-label="Set summary language"
+          title={`Idioma do resumo: ${effectiveLangLabel}${isLocalFallbackLanguage ? ' (salvo neste dispositivo)' : ''}`}
+          aria-label="Definir idioma do resumo"
         >
           <Languages size={18} />
           <span className="hidden @[40rem]:inline">{effectiveLangLabel}</span>
-          <ChevronDown size={14} className="text-gray-400" />
+          <ChevronDown size={14} className="text-muted-foreground/80" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -242,9 +242,9 @@ export function SummaryPanel({
   );
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col bg-white overflow-hidden h-full w-full @container">
+    <div className="flex-1 min-w-0 flex flex-col bg-background overflow-hidden h-full w-full @container">
       {/* Top-level actions — always visible, same pattern as TranscriptPanel */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="px-3 py-2 border-b border-border">
         <div className="flex items-center justify-center w-full min-w-0 gap-2 flex-wrap">
           <div className="flex-shrink-0 min-w-0">
             <SummaryGeneratorButtonGroup
@@ -281,9 +281,12 @@ export function SummaryPanel({
 
       {isSummaryLoading ? (
         <div className="flex items-center justify-center flex-1">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-            <p className="text-gray-600">Generating AI Summary...</p>
+          <div className="w-full max-w-[820px] space-y-3 px-6" role="status">
+            <p className="mb-4 text-sm text-muted-foreground">Gerando o resumo…</p>
+            <div className="skeleton h-5 w-2/5" />
+            <div className="skeleton h-3.5 w-11/12" />
+            <div className="skeleton h-3.5 w-10/12" />
+            <div className="skeleton h-3.5 w-8/12" />
           </div>
         </div>
       ) : !hasSummary ? (
@@ -294,8 +297,8 @@ export function SummaryPanel({
           error={summaryError}
         />
       ) : (
-        <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
-          <div className="p-6 w-full">
+        <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 custom-scrollbar">
+          <div className="reading mx-auto w-full max-w-[820px] p-6">
             <BlockNoteSummaryView
               ref={summaryRef}
               summaryData={aiSummary}
@@ -316,9 +319,9 @@ export function SummaryPanel({
             />
           </div>
           {summaryStatus !== 'idle' && (
-            <div className={`mt-4 p-4 rounded-lg ${summaryStatus === 'error' ? 'bg-red-100 text-red-700' :
-              summaryStatus === 'completed' ? 'bg-green-100 text-green-700' :
-                'bg-blue-100 text-blue-700'
+            <div className={`mt-4 p-4 rounded-lg ${summaryStatus === 'error' ? 'bg-danger-soft text-danger' :
+              summaryStatus === 'completed' ? 'bg-success-soft text-success' :
+                'bg-brand-soft text-brand'
               }`}>
               <p className="text-sm font-medium">{getSummaryStatusMessage(summaryStatus)}</p>
             </div>

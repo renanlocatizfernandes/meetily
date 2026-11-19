@@ -476,7 +476,7 @@ impl SummaryService {
             }
         } else {
             // Cloud providers (OpenAI, Claude, Groq, CustomOpenAI) handle large contexts automatically
-            100000  // Effectively unlimited for single-pass processing
+            100000  // Altivavely unlimited for single-pass processing
         };
 
         // Get app data directory for BuiltInAI provider
@@ -618,6 +618,13 @@ impl SummaryService {
                             }
                         }
                         info!("Summary saved successfully for meeting_id: {}", meeting_id);
+                        // Let the organizer redo the title with the summary in hand
+                        // (skipped when the title was typed by the user).
+                        crate::organize::schedule_auto_organize(
+                            &_app,
+                            &meeting_id,
+                            crate::organize::AutoTrigger::SummaryCompleted,
+                        );
                     }
                     Ok(false) => warn!("Skipped stale summary completion for meeting_id: {}", meeting_id),
                     Err(error) => error!(

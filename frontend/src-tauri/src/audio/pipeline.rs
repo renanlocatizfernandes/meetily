@@ -978,7 +978,8 @@ pub struct AudioPipeline {
     receiver: mpsc::UnboundedReceiver<AudioChunk>,
     transcription_sender: mpsc::UnboundedSender<AudioChunk>,
     state: Arc<RecordingState>,
-    vad_processor: ContinuousVadProcessor,
+    mic_vad: ContinuousVadProcessor,
+    system_vad: ContinuousVadProcessor,
     sample_rate: u32,
     chunk_id_counter: u64,
     last_summary_time: std::time::Instant,
@@ -1036,10 +1037,13 @@ impl AudioPipeline {
         // indefinitely and withheld live transcript emission, so live and batch
         // deliberately diverge. Bounded live segments under continuous speech
         // are tracked in #756.
-        let vad_processor =
-            ContinuousVadProcessor::new(sample_rate, VAD_REDEMPTION_TIME_MS)?;
+        // Two sessions keep microphone and system speech on separate timelines.
+        // Transcription stays on the single shared engine (see the worker): a second
+        // Whisper/Parakeet context would duplicate model memory on Apple Silicon.
+        let mic_vad = ContinuousVadProcessor::new(sample_rate, VAD_REDEMPTION_TIME_MS)?;
+        let system_vad = ContinuousVadProcessor::new(sample_rate, VAD_REDEMPTION_TIME_MS)?;
         info!(
-            "VAD-driven pipeline: segments dispatched per speech burst (redemption_time={}ms)",
+            "VAD-driven pipeline: mic and system segmented separately (redemption_time={}ms), recording stays mixed",
             VAD_REDEMPTION_TIME_MS
         );
 
@@ -1054,7 +1058,8 @@ impl AudioPipeline {
             receiver,
             transcription_sender,
             state,
-            vad_processor,
+            mic_vad,
+            system_vad,
             sample_rate,
             chunk_id_counter: 0,
             last_summary_time: std::time::Instant::now(),
@@ -1137,32 +1142,10 @@ impl AudioPipeline {
         // Previous 2x gain was causing excessive limiting/distortion
         let mixed_with_gain = mixed_clean;
 
-        // STEP 3: Send mixed audio for transcription (VAD + Whisper)
-        match self.vad_processor.process_audio(&mixed_with_gain) {
-            Ok(speech_segments) => {
-                for segment in speech_segments {
-                    let duration_ms = segment.end_timestamp_ms - segment.start_timestamp_ms;
-                    if segment.samples.len() >= 800 {
-                        self.log_stats.record_segment(duration_ms);
-                        let transcription_chunk = AudioChunk {
-                            data: segment.samples,
-                            sample_rate: 16000,
-                            timestamp: segment.start_timestamp_ms / 1000.0,
-                            chunk_id: self.chunk_id_counter,
-                            device_type: DeviceType::Microphone,
-                        };
-                        if self.transcription_sender.send(transcription_chunk).is_err() {
-                            self.log_stats.send_failures += 1;
-                        } else {
-                            self.chunk_id_counter += 1;
-                        }
-                    } else {
-                        self.log_stats.short += 1;
-                    }
-                }
-            }
-            Err(error) => self.log_stats.record_vad_failure(VadOperation::Process, &error),
-        }
+        // Speech is segmented per channel so each transcript keeps its source.
+        // The mixed buffer below is only the recording file.
+        self.segment_channel(mic_window, DeviceType::Microphone);
+        self.segment_channel(sys_window, DeviceType::System);
 
         // STEP 4: Send mixed audio for recording (WAV file)
         if let Some(ref sender) = self.recording_sender_for_mixed {
@@ -1180,32 +1163,60 @@ impl AudioPipeline {
     fn flush_remaining_audio(&mut self) -> Result<()> {
         #[cfg(target_os = "linux")]
         self.mix_ready(true, 0.0);
-        match self.vad_processor.flush() {
-            Ok(final_segments) => {
-                for segment in final_segments {
-                    let duration_ms = segment.end_timestamp_ms - segment.start_timestamp_ms;
-                    if segment.samples.len() >= 800 {
-                        self.log_stats.record_segment(duration_ms);
-                        let transcription_chunk = AudioChunk {
-                            data: segment.samples,
-                            sample_rate: 16000,
-                            timestamp: segment.start_timestamp_ms / 1000.0,
-                            chunk_id: self.chunk_id_counter,
-                            device_type: DeviceType::Microphone,
-                        };
-                        if self.transcription_sender.send(transcription_chunk).is_err() {
-                            self.log_stats.send_failures += 1;
-                        } else {
-                            self.chunk_id_counter += 1;
-                        }
-                    } else {
-                        self.log_stats.short += 1;
-                    }
+        self.flush_channel(DeviceType::Microphone);
+        self.flush_channel(DeviceType::System);
+        Ok(())
+    }
+
+    fn segment_channel(&mut self, samples: &[f32], device_type: DeviceType) {
+        let (processed, in_speech) = match device_type {
+            DeviceType::Microphone => (self.mic_vad.process_audio(samples), self.mic_vad.is_in_speech()),
+            DeviceType::System => (self.system_vad.process_audio(samples), self.system_vad.is_in_speech()),
+        };
+        match processed {
+            Ok(segments) => {
+                // One atomic stamp per window with speech, read by the meeting-end detector.
+                if in_speech || !segments.is_empty() {
+                    super::speech_activity::mark(device_type);
                 }
+                self.send_speech_segments(segments, device_type)
             }
+            Err(error) => self.log_stats.record_vad_failure(VadOperation::Process, &error),
+        }
+    }
+
+    fn flush_channel(&mut self, device_type: DeviceType) {
+        let flushed = match device_type {
+            DeviceType::Microphone => self.mic_vad.flush(),
+            DeviceType::System => self.system_vad.flush(),
+        };
+        match flushed {
+            Ok(segments) => self.send_speech_segments(segments, device_type),
             Err(error) => self.log_stats.record_vad_failure(VadOperation::Flush, &error),
         }
-        Ok(())
+    }
+
+    fn send_speech_segments(&mut self, segments: Vec<super::vad::SpeechSegment>, device_type: DeviceType) {
+        for segment in segments {
+            let duration_ms = segment.end_timestamp_ms - segment.start_timestamp_ms;
+            if segment.samples.len() >= 800 {
+                self.log_stats.record_segment(duration_ms);
+                let transcription_chunk = AudioChunk {
+                    data: segment.samples,
+                    sample_rate: 16000,
+                    timestamp: segment.start_timestamp_ms / 1000.0,
+                    chunk_id: self.chunk_id_counter,
+                    device_type,
+                };
+                if self.transcription_sender.send(transcription_chunk).is_err() {
+                    self.log_stats.send_failures += 1;
+                } else {
+                    self.chunk_id_counter += 1;
+                }
+            } else {
+                self.log_stats.short += 1;
+            }
+        }
     }
 
     fn emit_log_summary(&mut self, final_summary: bool) {

@@ -7,6 +7,8 @@ import { useRecordingState } from './RecordingStateContext';
 import { transcriptService } from '@/services/transcriptService';
 import { recordingService } from '@/services/recordingService';
 import { indexedDBService } from '@/services/indexedDBService';
+import { invoke } from '@tauri-apps/api/core';
+import { speakerDisplay } from '@/lib/speakerLabel';
 
 interface TranscriptContextType {
   transcripts: Transcript[];
@@ -20,6 +22,7 @@ interface TranscriptContextType {
   clearTranscripts: () => void;
   currentMeetingId: string | null;
   markMeetingAsSaved: () => Promise<void>;
+  renameSpeaker: (speakerKey: string, displayName: string) => Promise<void>;
 }
 
 const TranscriptContext = createContext<TranscriptContextType | undefined>(undefined);
@@ -338,7 +341,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
         console.log('✅ MAIN transcript listener setup complete');
       } catch (error) {
         console.error('❌ Failed to setup MAIN transcript listener:', error);
-        alert('Failed to setup transcript listener. Check console for details.');
+        alert('Não foi possível preparar a transcrição ao vivo. Veja o console para detalhes.');
       }
     };
 
@@ -383,6 +386,8 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
             audio_start_time: segment.audio_start_time,
             audio_end_time: segment.audio_end_time,
             duration: segment.duration,
+            speaker: segment.speaker,
+            speaker_key: segment.speaker_key,
           }));
 
           setTranscripts(formattedTranscripts);
@@ -424,6 +429,8 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
       audio_start_time: update.audio_start_time,
       audio_end_time: update.audio_end_time,
       duration: update.duration,
+      speaker: update.speaker_label || (update.source === 'mic' || update.source === 'system' ? update.source : undefined),
+      speaker_key: update.speaker_key,
     };
 
     setTranscripts(prev => {
@@ -465,11 +472,14 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     };
 
     const fullTranscript = transcripts
-      .map(t => `${formatTime(t.audio_start_time)} ${t.text}`)
+      .map(t => {
+        const label = speakerDisplay(t.speaker) || '';
+        return `${formatTime(t.audio_start_time)}${label ? ` ${label}:` : ''} ${t.text}`;
+      })
       .join('\n');
     navigator.clipboard.writeText(fullTranscript);
 
-    toast.success("Transcript copied to clipboard");
+    toast.success("Transcrição copiada");
   }, [transcripts]);
 
   // Force flush buffer (for final transcript processing)
@@ -509,6 +519,15 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     }
   }, [currentMeetingId]);
 
+  const renameSpeaker = useCallback(async (speakerKey: string, displayName: string) => {
+    const name = displayName.trim();
+    if (!speakerKey || !name) return;
+    setTranscripts(prev => prev.map(transcript => (
+      transcript.speaker_key === speakerKey ? { ...transcript, speaker: name } : transcript
+    )));
+    await invoke('rename_speaker', { meetingId: null, speakerKey, displayName: name });
+  }, []);
+
   const value: TranscriptContextType = {
     transcripts,
     transcriptsRef,
@@ -521,6 +540,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     clearTranscripts,
     currentMeetingId,
     markMeetingAsSaved,
+    renameSpeaker,
   };
 
   return (

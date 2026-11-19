@@ -968,6 +968,9 @@ impl WhisperEngine {
             "medium-q5_0" => "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium-q5_0.bin",
             "large-v3-turbo-q5_0" => "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
             "large-v3-q5_0" => "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin",
+            // Pinned to the repository commit checked on 2026-11-19 (874,188,075 bytes,
+            // SHA-256 317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1).
+            "large-v3-turbo-q8_0" => "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q8_0.bin",
             _ => return Err(anyhow!("Unsupported model: {}", model_name)),
         };
 
