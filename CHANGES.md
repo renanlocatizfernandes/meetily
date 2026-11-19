@@ -150,18 +150,21 @@ Permissões novas no `Info.plist`: `NSCalendarsUsageDescription` e `NSRemindersU
 No macOS, com a opção ligada (é o padrão, em Configurações → Gravação), o app observa a cada 2 segundos:
 
 - se o Teams novo (`com.microsoft.teams2`) ou o Teams clássico (`com.microsoft.teams`) tem o microfone em uso (`kAudioProcessPropertyIsRunningInput`, Core Audio, macOS 14.2 ou mais novo);
-- se o Zoom (`us.zoom.xos`) tem o microfone em uso;
-- se o Chrome, Safari, Edge, Firefox, Brave ou Arc tem o microfone em uso e o título da janela indica Microsoft Teams ou Google Meet.
+- ou se a janela do Teams tem título de reunião, mesmo com o microfone no mudo ou numa reunião só sua. O app aberto na lista de processos não esconde mais esse título. Telas ociosas em português (Bate-papo, Calendário, Chamadas, Atividade) não disparam;
+- se o Zoom (`us.zoom.xos`) tem o microfone em uso ou a janela diz “Zoom Meeting”;
+- se o Chrome, Safari, Edge, Firefox, Brave ou Arc está numa chamada do Meet (`Meet - código`) ou do Teams.
 
 O título da janela vem de `CGWindowListCopyWindowInfo` (Core Graphics). O nome da janela de outro app só aparece se a Gravação de Tela já estiver concedida. Essa permissão o app já pede (`NSScreenCaptureUsageDescription`). Não há chave nova no Info.plist. Os títulos não são gravados em log nem enviados ao modelo.
 
 A chamada precisa permanecer cerca de 12 segundos antes de a gravação começar, e precisa sumir por cerca de 20 segundos antes de parar. Uma gravação iniciada à mão não é parada por essa lógica. Se você parar a gravação automática, ela não recomeça enquanto a chamada ainda estiver ativa. Desligar a opção impede uma nova gravação automática; a que já estiver no ar ainda para quando a chamada termina.
 
-Quando começa, aparece um aviso no topo com o nome do app e o botão Parar, além da notificação de gravação que o app já mostra. O app não se esconde do compartilhamento de tela. O texto na tela pede para avisar as outras pessoas de que a reunião está sendo gravada.
+Quando a reunião é reconhecida, o topo mostra um contador de cerca de 12 segundos e depois o aviso com Parar. Em Configurações → Gravação, “Status agora” explica o que o Mac está vendo, sem gravar o título da reunião. “Verificar agora” lê de novo. O roteiro na mesma tela pede um teste no Teams (Reunir agora, pode ser sozinho), no Zoom e no Meet.
+
+A notificação “Recording Start Notification” fica desligada por padrão. Quem já tinha gravado a preferência como ligada continua vendo o lembrete. O app não se esconde do compartilhamento de tela. O texto na tela pede para avisar as outras pessoas de que a reunião está sendo gravada.
 
 No Linux e no Windows essa observação devolve lista vazia, então a gravação automática não dispara. O interruptor continua visível.
 
-Limites: uma mensagem de voz no Teams que use o microfone por mais de 12 segundos pode iniciar uma gravação. O título do navegador é uma heurística (precisa conter "Microsoft Teams" ou "Google Meet" e não ser a tela ociosa de chat, calendário ou arquivos). Sem a lista de processos, só uma janela do Teams com título de chamada conta.
+Limites: uma mensagem de voz no Teams que use o microfone por mais de 12 segundos pode iniciar uma gravação. Sem a permissão de Gravação de Tela, o macOS não entrega o título da janela de outro app; nesse caso só o microfone em uso começa a gravação, e o status avisa isso. Uma reunião cujo título continua só “Microsoft Teams” também depende do microfone sem mudo.
 
 ## Quem está falando
 

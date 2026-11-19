@@ -33,7 +33,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showRecordingNotification, setShowRecordingNotification] = useState(true);
+  const [showRecordingNotification, setShowRecordingNotification] = useState(false);
   const { isRecording } = useRecordingState();
   const { setSelectedDevices } = useConfig();
 
@@ -67,7 +67,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
       try {
         const { Store } = await import('@tauri-apps/plugin-store');
         const store = await Store.load('preferences.json');
-        const show = await store.get<boolean>('show_recording_notification') ?? true;
+        const show = await store.get<boolean>('show_recording_notification') ?? false;
         setShowRecordingNotification(show);
       } catch (error) {
         console.error('Failed to load notification preference:', error);

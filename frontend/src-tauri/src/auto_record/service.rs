@@ -1,4 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use log::{info, warn};
@@ -16,6 +17,23 @@ use super::snapshot;
 static USER_HOLD: AtomicBool = AtomicBool::new(false);
 static OWNED: AtomicBool = AtomicBool::new(false);
 static STARTED: AtomicBool = AtomicBool::new(false);
+static WATCH: Mutex<Watch> = Mutex::new(Watch {
+    active: false,
+    app: None,
+    phase: "idle",
+    hint: "Nenhuma reunião detectada. Abra o Teams, o Zoom ou o Meet, entre numa chamada e acompanhe o status aqui.",
+    seconds_left: None,
+});
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Watch {
+    pub active: bool,
+    pub app: Option<String>,
+    pub phase: &'static str,
+    pub hint: &'static str,
+    pub seconds_left: Option<u64>,
+}
 
 pub fn start(app: AppHandle<Wry>) {
     if STARTED.swap(true, Ordering::SeqCst) {
@@ -30,7 +48,8 @@ pub fn start(app: AppHandle<Wry>) {
             let user_hold = USER_HOLD.load(Ordering::SeqCst);
             let enabled = load_enabled(&app).await;
             let (windows, inputs) = snapshot::capture();
-            let signal = detect::detect_meeting(&windows, &inputs);
+            let detection = detect::inspect(&windows, &inputs);
+            let signal = detection.app;
             let recording = recording_commands::is_recording().await;
             if user_hold && signal.is_none() && !recording {
                 USER_HOLD.store(false, Ordering::SeqCst);
@@ -69,8 +88,37 @@ pub fn start(app: AppHandle<Wry>) {
                     }
                 }
             }
+            let now = Instant::now();
+            publish_watch(Watch {
+                active: owned && recording_commands::is_recording().await,
+                app: signal.map(MeetingApp::label).map(str::to_string),
+                phase: machine.phase_name(),
+                hint: if enabled {
+                    detection.hint
+                } else {
+                    "Gravação automática desligada nas configurações."
+                },
+                seconds_left: machine.seconds_until_start(now, origin),
+            }, &app);
         }
     });
+}
+
+fn publish_watch(watch: Watch, app: &AppHandle<Wry>) {
+    if let Ok(mut slot) = WATCH.lock() {
+        *slot = watch.clone();
+    }
+    let _ = app.emit("auto-record-watch", &watch);
+}
+
+pub fn current_watch() -> Watch {
+    WATCH.lock().map(|watch| watch.clone()).unwrap_or_else(|_| Watch {
+        active: false,
+        app: None,
+        phase: "idle",
+        hint: "Ainda não foi possível observar as reuniões.",
+        seconds_left: None,
+    })
 }
 
 pub async fn dismiss(app: AppHandle<Wry>) -> Result<(), String> {

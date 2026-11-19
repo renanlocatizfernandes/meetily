@@ -925,6 +925,7 @@ pub fn run() {
             auto_record::get_auto_record_settings,
             auto_record::save_auto_record_settings,
             auto_record::dismiss_auto_recording,
+            auto_record::auto_record_watch,
             speakers::rename_speaker,
             assist_plus::commands::get_feature_toggles,
             assist_plus::commands::save_feature_toggles,

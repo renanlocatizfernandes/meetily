@@ -10,7 +10,7 @@ mod service;
 mod settings;
 mod snapshot;
 
-pub use service::{dismiss, get_settings, save, start};
+pub use service::{current_watch, dismiss, get_settings, save, start, Watch};
 
 #[tauri::command]
 pub async fn get_auto_record_settings(
@@ -30,4 +30,9 @@ pub async fn save_auto_record_settings(
 #[tauri::command]
 pub async fn dismiss_auto_recording(app: tauri::AppHandle<tauri::Wry>) -> Result<(), String> {
     dismiss(app).await
+}
+
+#[tauri::command]
+pub async fn auto_record_watch() -> Watch {
+    current_watch()
 }

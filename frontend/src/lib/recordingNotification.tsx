@@ -14,7 +14,7 @@ export async function showRecordingNotification(): Promise<void> {
   try {
     const { Store } = await import('@tauri-apps/plugin-store');
     const store = await Store.load('preferences.json');
-    const showNotification = await store.get<boolean>('show_recording_notification') ?? true;
+    const showNotification = await store.get<boolean>('show_recording_notification') ?? false;
 
     if (showNotification) {
       let dontShowAgain = false;

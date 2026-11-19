@@ -52,6 +52,26 @@ impl DetectorMachine {
         &self.phase
     }
 
+    pub fn phase_name(&self) -> &'static str {
+        match self.phase {
+            Phase::Idle => "idle",
+            Phase::Arming { .. } => "arming",
+            Phase::Starting { .. } => "starting",
+            Phase::Active { .. } => "active",
+            Phase::Clearing { .. } => "clearing",
+            Phase::Stopping { .. } => "stopping",
+            Phase::Suppressed => "suppressed",
+        }
+    }
+
+    pub fn seconds_until_start(&self, now: Instant, origin: Instant) -> Option<u64> {
+        let Phase::Arming { since_ms, .. } = self.phase else {
+            return None;
+        };
+        let held = elapsed_ms(origin, now).saturating_sub(since_ms) / 1000;
+        Some(START_HOLD.as_secs().saturating_sub(held))
+    }
+
     pub fn step(&mut self, input: &StepInput) -> Option<Action> {
         let now_ms = elapsed_ms(input.origin, input.now);
         if input.user_hold {
