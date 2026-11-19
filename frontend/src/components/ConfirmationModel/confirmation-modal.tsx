@@ -1,35 +1,43 @@
 import React from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 interface ConfirmationModalProps {
   onConfirm: () => void;
   onCancel: () => void;
   text: string;
   isOpen: boolean;
+  title?: string;
+  confirmLabel?: string;
 }
 
-export function ConfirmationModal({ onConfirm, onCancel, text, isOpen }: ConfirmationModalProps) {
-  if (!isOpen) return null;
-
+export function ConfirmationModal({
+  onConfirm,
+  onCancel,
+  text,
+  isOpen,
+  title = 'Excluir reunião',
+  confirmLabel = 'Excluir',
+}: ConfirmationModalProps) {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h2 className="text-xl font-semibold mb-4">Confirm Delete</h2>
-        <p className="text-gray-600 mb-6">{text}</p>
-        <div className="flex justify-end space-x-4">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-md transition-colors"
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-    </div>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onCancel(); }}>
+      <DialogContent className="sm:max-w-[420px]">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{text}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button variant="destructive" onClick={onConfirm}>{confirmLabel}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

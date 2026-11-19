@@ -341,7 +341,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
         console.log('✅ MAIN transcript listener setup complete');
       } catch (error) {
         console.error('❌ Failed to setup MAIN transcript listener:', error);
-        alert('Failed to setup transcript listener. Check console for details.');
+        alert('Não foi possível preparar a transcrição ao vivo. Veja o console para detalhes.');
       }
     };
 
@@ -479,7 +479,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
       .join('\n');
     navigator.clipboard.writeText(fullTranscript);
 
-    toast.success("Transcript copied to clipboard");
+    toast.success("Transcrição copiada");
   }, [transcripts]);
 
   // Force flush buffer (for final transcript processing)

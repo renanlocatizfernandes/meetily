@@ -2,6 +2,8 @@ use tauri::{AppHandle, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 
 use crate::state::AppState;
 
+use super::context::{ContextSettings, ContextSummary};
+use super::context_store;
 use super::settings_store::{self, LiveAssistSettings};
 
 #[tauri::command]
@@ -34,7 +36,53 @@ pub async fn save_live_assist_settings<R: Runtime>(
     settings_store::save_settings(&pool, &settings)
         .await
         .map_err(|_| "Não foi possível salvar as configurações da ajuda ao vivo.".to_string())?;
+    // The typed meeting context can name the client of a recording in progress.
+    super::service::request_context_refresh();
     Ok(settings)
+}
+
+/// Owner profile, glossary and the switch for earlier meetings.
+/// JS: `invoke('get_live_assist_context_settings')`
+#[tauri::command]
+pub async fn get_live_assist_context_settings<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<ContextSettings, String> {
+    let pool = app
+        .try_state::<AppState>()
+        .ok_or_else(|| "Banco de dados indisponível".to_string())?
+        .db_manager
+        .pool()
+        .clone();
+    context_store::load_context_settings(&pool)
+        .await
+        .map_err(|_| "Não foi possível ler o perfil da ajuda ao vivo.".to_string())
+}
+
+/// JS: `invoke('save_live_assist_context_settings', { settings })`
+#[tauri::command]
+pub async fn save_live_assist_context_settings<R: Runtime>(
+    app: AppHandle<R>,
+    settings: ContextSettings,
+) -> Result<ContextSettings, String> {
+    let pool = app
+        .try_state::<AppState>()
+        .ok_or_else(|| "Banco de dados indisponível".to_string())?
+        .db_manager
+        .pool()
+        .clone();
+    let settings = settings.normalized();
+    context_store::save_context_settings(&pool, &settings)
+        .await
+        .map_err(|_| "Não foi possível salvar o perfil da ajuda ao vivo.".to_string())?;
+    super::service::request_context_refresh();
+    Ok(settings)
+}
+
+/// "Contexto em uso" of the recording in progress; `null` when not recording.
+/// The same payload is emitted as `live-assist-context` whenever it changes.
+#[tauri::command]
+pub async fn get_live_assist_context() -> Result<Option<ContextSummary>, String> {
+    Ok(super::service::current_context_summary())
 }
 
 fn live_assist_url() -> WebviewUrl {

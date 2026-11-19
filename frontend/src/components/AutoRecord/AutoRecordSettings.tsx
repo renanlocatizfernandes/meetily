@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
+import { AutoRecordMode, AutoRecordModeControl, isAutoRecordMode } from '@/components/AutoRecord/AutoRecordModeControl';
 
 interface Watch {
   active: boolean;
@@ -16,14 +17,43 @@ interface Watch {
 export function AutoRecordSettings() {
   const [enabled, setEnabled] = useState(true);
   const [loaded, setLoaded] = useState(false);
+  // Null when the Rust core still answers with the old on/off setting only.
+  const [mode, setMode] = useState<AutoRecordMode | null>(null);
   const [watch, setWatch] = useState<Watch | null>(null);
 
   useEffect(() => {
-    invoke<{ enabled: boolean }>('get_auto_record_settings')
-      .then((settings) => setEnabled(settings.enabled))
+    invoke<{ enabled: boolean; mode?: AutoRecordMode }>('get_auto_record_settings')
+      .then((settings) => {
+        setEnabled(settings.enabled);
+        if (isAutoRecordMode(settings.mode)) setMode(settings.mode);
+      })
       .catch(() => setEnabled(true))
       .finally(() => setLoaded(true));
+    // The privacy dialog may change the mode while this card is on screen.
+    const onChanged = (event: Event) => {
+      const next = (event as CustomEvent<{ mode?: AutoRecordMode }>).detail?.mode;
+      if (isAutoRecordMode(next)) setMode((current) => (current === null ? current : next));
+    };
+    window.addEventListener('auto-record-settings-changed', onChanged);
+    return () => window.removeEventListener('auto-record-settings-changed', onChanged);
   }, []);
+
+  const changeMode = async (next: AutoRecordMode) => {
+    const previous = mode;
+    setMode(next);
+    try {
+      const saved = await invoke<{ enabled: boolean; mode?: AutoRecordMode }>('save_auto_record_settings', {
+        enabled: next !== 'off',
+        mode: next,
+      });
+      setEnabled(saved.enabled);
+      if (isAutoRecordMode(saved.mode)) setMode(saved.mode);
+    } catch (error) {
+      setMode(previous);
+      toast.error('Não foi possível salvar a gravação automática');
+      console.error(error);
+    }
+  };
 
   const refresh = async () => {
     try {
@@ -56,13 +86,20 @@ export function AutoRecordSettings() {
       <div>
         <h2 className="text-lg font-semibold text-gray-900">Gravação automática</h2>
         <p className="mt-1 text-sm text-gray-500">
-          No macOS, o Meetily Live observa se o Microsoft Teams, o Zoom ou o Google Meet está numa chamada e começa a gravar sozinho, com a ajuda ao vivo. A gravação aparece na tela. Avise as outras pessoas que a reunião está sendo gravada.
+          No macOS, o Meetily Live Plus observa se o Microsoft Teams, o Zoom ou o Google Meet está numa chamada e começa a gravar sozinho, com a ajuda ao vivo. A gravação aparece na tela. Avise as outras pessoas que a reunião está sendo gravada.
         </p>
       </div>
+      {mode !== null ? (
+        <div className="space-y-2">
+          <span id="auto-record-mode-label" className="text-sm font-medium text-foreground">Quando uma reunião começar</span>
+          <AutoRecordModeControl value={mode} onChange={changeMode} disabled={!loaded} labelledBy="auto-record-mode-label" />
+        </div>
+      ) : (
       <label className="flex items-center justify-between gap-4">
         <span className="text-sm font-medium text-gray-800">Gravar quando uma reunião começar</span>
         <Switch checked={enabled} disabled={!loaded} onCheckedChange={toggle} />
       </label>
+      )}
       <p className="text-sm text-amber-800">
         Avise as outras pessoas que esta reunião está sendo gravada.
       </p>
@@ -77,11 +114,11 @@ export function AutoRecordSettings() {
         </button>
       </div>
       <ol className="list-decimal space-y-1 pl-5 text-sm text-gray-700">
-        <li>Deixe “Gravar quando uma reunião começar” ligado.</li>
-        <li>No Mac: Ajustes → Privacidade → Microfone e Gravação de Tela e Áudio do Sistema, ambos para o Meetily Live. Reabra o app depois.</li>
+        <li>{mode !== null ? 'Escolha “Perguntar antes de gravar” ou “Gravar sozinho”.' : 'Deixe “Gravar quando uma reunião começar” ligado.'}</li>
+        <li>No Mac: Ajustes → Privacidade → Microfone e Gravação de Tela e Áudio do Sistema, ambos para o Meetily Live Plus. Reabra o app depois.</li>
         <li>Teams: clique em Reunir agora. Pode ser uma reunião só sua. Se o título da janela não mudar, tire o mudo do microfone do Teams.</li>
         <li>Zoom: entre numa sala. Meet: entre numa chamada (o título fica “Meet - …” ).</li>
-        <li>O status acima deve mudar na hora. O contador dura cerca de 12 segundos e então o aviso vermelho aparece com Parar.</li>
+        <li>{mode === 'ask' ? 'O status acima deve mudar na hora e um aviso pergunta se você quer gravar.' : 'O status acima deve mudar na hora. O contador dura cerca de 12 segundos e então o aviso vermelho aparece com Parar.'}</li>
       </ol>
     </div>
   );

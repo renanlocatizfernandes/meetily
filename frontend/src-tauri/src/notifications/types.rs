@@ -23,6 +23,8 @@ pub enum NotificationType {
     MeetingReminder(u64), // Duration in minutes
     SystemError(String),
     Test, // For testing notifications
+    /// The meeting seems to be over and the recording is about to stop.
+    MeetingEndDetected,
 }
 
 impl NotificationType {
@@ -36,6 +38,7 @@ impl NotificationType {
             Self::MeetingReminder(_) => "meeting_reminder",
             Self::SystemError(_) => "system_error",
             Self::Test => "test",
+            Self::MeetingEndDetected => "meeting_end_detected",
         }
     }
 }

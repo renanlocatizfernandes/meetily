@@ -1,24 +1,16 @@
 'use client';
 
 import React from 'react';
-import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 
 interface MainContentProps {
   children: React.ReactNode;
 }
 
+/** Área principal: uma coluna calma ao lado da barra lateral. As páginas ocupam `h-full`. */
 const MainContent: React.FC<MainContentProps> = ({ children }) => {
-  const { isCollapsed } = useSidebar();
-
   return (
-    <main
-      className={`flex-1 min-w-0 overflow-hidden transition-all duration-300 ${
-        isCollapsed ? 'ml-16' : 'ml-64'
-      }`}
-    >
-      <div className="pl-8 min-w-0 w-full max-w-full overflow-hidden">
-        {children}
-      </div>
+    <main className="relative h-screen min-w-0 flex-1 overflow-hidden bg-background">
+      {children}
     </main>
   );
 };

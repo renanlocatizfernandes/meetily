@@ -82,7 +82,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
         console.log('Tauri is initialized and ready, is_recording result:', result);
       } catch (error) {
         console.error('Tauri initialization error:', error);
-        alert('Failed to initialize recording. Please check the console for details.');
+        alert('Não foi possível preparar a gravação. Veja o console para detalhes.');
       }
     };
     checkTauri();
@@ -119,26 +119,26 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
 
       // Check for device-related errors
       if (errorMsg.startsWith('Your saved ') && errorMsg.includes('Choose a device in Recording Settings.')) {
-        setDeviceError({ title: 'Update Audio Device Selection', message: errorMsg });
+        setDeviceError({ title: 'Atualize os dispositivos de áudio', message: errorMsg });
       } else if (errorMsg.includes('microphone') || errorMsg.includes('mic') || errorMsg.includes('input')) {
         setDeviceError({
-          title: 'Microphone Not Available',
-          message: 'Unable to access your microphone. Please check that:\n• Your microphone is connected\n• The app has microphone permissions\n• No other app is using the microphone'
+          title: 'Microfone indisponível',
+          message: 'Não foi possível acessar o microfone. Confira se:\n• O microfone está conectado\n• O app tem permissão de microfone\n• Nenhum outro app está usando o microfone'
         });
       } else if (errorMsg.includes('system audio') || errorMsg.includes('speaker') || errorMsg.includes('output')) {
         setDeviceError({
-          title: 'System Audio Not Available',
-          message: 'Unable to capture system audio. Please check that:\n• A virtual audio device (like BlackHole) is installed\n• The app has screen recording permissions (macOS)\n• System audio is properly configured'
+          title: 'Áudio do sistema indisponível',
+          message: 'Não foi possível capturar o áudio do sistema. Confira se:\n• Há um dispositivo de áudio virtual instalado (como o BlackHole)\n• O app tem permissão de gravação de tela (macOS)\n• O áudio do sistema está configurado corretamente'
         });
       } else if (errorMsg.includes('permission')) {
         setDeviceError({
-          title: 'Permission Required',
-          message: 'Recording permissions are required. Please:\n• Grant microphone access in System Settings\n• Grant screen recording access for system audio (macOS)\n• Restart the app after granting permissions'
+          title: 'Permissão necessária',
+          message: 'A gravação precisa de permissões. Faça o seguinte:\n• Conceda acesso ao microfone nos Ajustes do Sistema\n• Conceda acesso à gravação de tela para o áudio do sistema (macOS)\n• Reinicie o app depois de conceder as permissões'
         });
       } else {
         setDeviceError({
-          title: 'Recording Failed',
-          message: 'Unable to start recording. Please check your audio device settings and try again.'
+          title: 'Falha na gravação',
+          message: 'Não foi possível iniciar a gravação. Confira os dispositivos de áudio e tente de novo.'
         });
       }
     }
@@ -220,7 +220,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
       console.log('Recording paused successfully');
     } catch (error) {
       console.error('Failed to pause recording:', error);
-      alert('Failed to pause recording. Please check the console for details.');
+      alert('Não foi possível pausar a gravação. Veja o console para detalhes.');
     } finally {
       setIsPausing(false);
     }
@@ -238,7 +238,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
       console.log('Recording resumed successfully');
     } catch (error) {
       console.error('Failed to resume recording:', error);
-      alert('Failed to resume recording. Please check the console for details.');
+      alert('Não foi possível retomar a gravação. Veja o console para detalhes.');
     } finally {
       setIsResuming(false);
     }
@@ -338,12 +338,12 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col space-y-2">
-        <div className="flex items-center space-x-2 bg-white rounded-full shadow-lg px-4 py-2">
+      <div className="relative flex flex-col">
+        <div className="flex items-center space-x-2 px-1">
           {(isProcessing || isGloballyStopping) && !isParentProcessing ? (
             <div className="flex items-center space-x-2">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-900"></div>
-              <span className="text-sm text-gray-600">Processing recording...</span>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-input"></div>
+              <span className="text-sm text-muted-foreground">Processing recording...</span>
             </div>
           ) : (
             <>
@@ -356,27 +356,27 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                     <Mic size={16} />
                   </button>
 
-                  <div className="w-px h-6 bg-gray-200 mx-1" />
+                  <div className="w-px h-6 bg-accent mx-1" />
 
                   <div className="flex items-center space-x-1 mx-2">
-                    <div className="text-sm text-gray-600 min-w-[40px]">
+                    <div className="text-sm text-muted-foreground min-w-[40px]">
                       {formatTime(currentTime)}
                     </div>
                     <div
-                      className="relative w-24 h-1 bg-gray-200 rounded-full"
+                      className="relative w-24 h-1 bg-accent rounded-full"
                     >
                       <div
-                        className="absolute h-full bg-blue-500 rounded-full"
+                        className="absolute h-full bg-primary rounded-full"
                         style={{ width: `${progress}%` }}
                       />
                     </div>
-                    <div className="text-sm text-gray-600 min-w-[40px]">
+                    <div className="text-sm text-muted-foreground min-w-[40px]">
                       {formatTime(duration)}
                     </div>
                   </div>
 
                   <button
-                    className="w-10 h-10 flex items-center justify-center bg-gray-300 rounded-full text-white cursor-not-allowed"
+                    className="w-10 h-10 flex items-center justify-center bg-border rounded-full text-white cursor-not-allowed"
                     disabled
                   >
                     <Play size={16} />
@@ -389,12 +389,13 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
+                          aria-label="Iniciar gravação"
                           onClick={() => {
                             Analytics.trackButtonClick('start_recording', 'recording_controls');
                             handleStartRecording();
                           }}
                           disabled={isStarting || isProcessing || isRecordingDisabled || isValidatingModel || isStartingRecording}
-                          className={`w-12 h-12 flex items-center justify-center ${isStarting || isProcessing || isValidatingModel || isStartingRecording ? 'bg-gray-400' : 'bg-red-500 hover:bg-red-600'
+                          className={`w-10 h-10 flex items-center justify-center ${isStarting || isProcessing || isValidatingModel || isStartingRecording ? 'bg-muted-foreground/50' : 'bg-recording hover:bg-recording/90'
                             } rounded-full text-white transition-colors relative`}
                         >
                           {isValidatingModel || isStartingRecording ? (
@@ -405,7 +406,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                         </button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Start recording</p>
+                        <p>Iniciar gravação</p>
                       </TooltipContent>
                     </Tooltip>
                   ) : (
@@ -414,6 +415,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
+                            aria-label={isPaused ? 'Retomar gravação' : 'Pausar gravação'}
                             onClick={() => {
                               if (isPaused) {
                                 Analytics.trackButtonClick('resume_recording', 'recording_controls');
@@ -425,54 +427,55 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                             }}
                             disabled={isPausing || isResuming || isStopping}
                             className={`w-10 h-10 flex items-center justify-center ${isPausing || isResuming || isStopping
-                              ? 'bg-gray-200 border-2 border-gray-300 text-gray-400'
-                              : 'bg-white border-2 border-gray-300 text-gray-600 hover:border-gray-400 hover:bg-gray-50'
+                              ? 'bg-accent border-2 border-border text-muted-foreground/80'
+                              : 'bg-card border-2 border-border text-muted-foreground hover:border-input hover:bg-muted'
                               } rounded-full transition-colors relative`}
                           >
                             {isPaused ? <Play size={16} /> : <Pause size={16} />}
                             {(isPausing || isResuming) && (
-                              <div className="absolute -top-8 text-gray-600 font-medium text-xs">
-                                {isPausing ? 'Pausing...' : 'Resuming...'}
+                              <div className="absolute -top-8 text-muted-foreground font-medium text-xs">
+                                {isPausing ? 'Pausando...' : 'Retomando...'}
                               </div>
                             )}
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>{isPaused ? 'Resume recording' : 'Pause recording'}</p>
+                          <p>{isPaused ? 'Retomar gravação' : 'Pausar gravação'}</p>
                         </TooltipContent>
                       </Tooltip>
 
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
+                            aria-label="Parar gravação"
                             onClick={() => {
                               Analytics.trackButtonClick('stop_recording', 'recording_controls');
                               handleStopRecording();
                             }}
                             disabled={isStopping || isPausing || isResuming || isStartingRecording}
-                            className={`w-10 h-10 flex items-center justify-center ${isStopping || isPausing || isResuming || isStartingRecording ? 'bg-gray-400' : 'bg-red-500 hover:bg-red-600'
+                            className={`w-10 h-10 flex items-center justify-center ${isStopping || isPausing || isResuming || isStartingRecording ? 'bg-muted-foreground/50' : 'bg-recording hover:bg-recording/90'
                               } rounded-full text-white transition-colors relative`}
                           >
                             <Square size={16} />
                             {isStopping && (
-                              <div className="absolute -top-8 text-gray-600 font-medium text-xs">
+                              <div className="absolute -top-8 text-muted-foreground font-medium text-xs">
                                 Stopping...
                               </div>
                             )}
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Stop recording</p>
+                          <p>Parar gravação</p>
                         </TooltipContent>
                       </Tooltip>
                     </>
                   )}
 
-                  <div className="flex items-center space-x-1 mx-4">
+                  <div className="flex h-8 items-center space-x-1 mx-3" aria-hidden="true">
                     {barHeights.map((height, index) => (
                       <div
                         key={index}
-                        className={`w-1 rounded-full transition-all duration-200 ${isPaused ? 'bg-orange-500' : 'bg-red-500'
+                        className={`w-1 rounded-full transition-all duration-150 ${isPaused ? 'bg-warning' : 'bg-recording'
                           }`}
                         style={{
                           height: isRecording && !isPaused ? height : '4px',
@@ -489,26 +492,26 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
 
         {/* Show validation status only */}
         {isValidatingModel && (
-          <div className="text-xs text-gray-600 text-center mt-2">
-            Validating speech recognition...
+          <div className="absolute bottom-full left-1/2 mb-3 -translate-x-1/2 whitespace-nowrap text-xs text-muted-foreground">
+            Verificando o reconhecimento de fala...
           </div>
         )}
 
         {/* Device error alert */}
         {deviceError && (
-          <Alert variant="destructive" className="mt-4 border-red-300 bg-red-50">
-            <AlertCircle className="h-5 w-5 text-red-600" />
+          <Alert variant="destructive" className="absolute bottom-full left-1/2 mb-4 w-[min(420px,80vw)] -translate-x-1/2 border-danger/30 bg-danger-soft shadow-md">
+            <AlertCircle className="h-5 w-5 text-danger" />
             <button
               onClick={() => setDeviceError(null)}
-              className="absolute right-3 top-3 text-red-600 hover:text-red-800 transition-colors"
-              aria-label="Close alert"
+              className="absolute right-3 top-3 text-danger hover:text-danger transition-colors"
+              aria-label="Fechar aviso"
             >
               <X className="h-4 w-4" />
             </button>
-            <AlertTitle className="text-red-800 font-semibold mb-2">
+            <AlertTitle className="text-danger font-semibold mb-2">
               {deviceError.title}
             </AlertTitle>
-            <AlertDescription className="text-red-700">
+            <AlertDescription className="text-danger">
               {deviceError.message.split('\n').map((line, i) => (
                 <div key={i} className={i > 0 ? 'ml-2' : ''}>
                   {line}
@@ -519,7 +522,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
         )}
 
         {/* {showPlayback && recordingPath && (
-        <div className="text-sm text-gray-600 px-4">
+        <div className="text-sm text-muted-foreground px-4">
           Recording saved to: {recordingPath}
         </div>
       )} */}

@@ -45,13 +45,13 @@
 }
 
 .animate-fade-in {
-  animation: fade-in 0.4s ease-out;
+  animation: fade-in 0.16s ease-out;
 }
 
 @keyframes fade-in-up {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(6px);
   }
 
   to {
@@ -61,7 +61,7 @@
 }
 
 .animate-fade-in-up {
-  animation: fade-in-up 0.5s ease-out forwards;
+  animation: fade-in-up 0.16s ease-out forwards;
 }
 
 .delay-75 {
@@ -76,60 +76,110 @@
   animation-delay: 150ms;
 }
 
+/*
+ * Tokens de tema.
+ * Superfícies neutras e quentes, um único acento (azul-petróleo) e vermelho só para gravação/erro.
+ * Os valores são canais HSL para funcionar com `hsl(var(--x) / <alpha-value>)` no Tailwind.
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+    color-scheme: light;
+
+    --background: 40 20% 98%;
+    --foreground: 30 6% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    --card-foreground: 30 6% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --radius: 0.5rem;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --popover-foreground: 30 6% 12%;
+    --primary: 186 60% 24%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 40 10% 93%;
+    --secondary-foreground: 30 6% 14%;
+    --muted: 40 12% 94.5%;
+    --muted-foreground: 30 4% 38%;
+    --accent: 40 10% 91%;
+    --accent-foreground: 30 6% 12%;
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 36 10% 87%;
+    --input: 36 10% 82%;
+    --ring: 186 50% 34%;
+    --radius: 0.625rem;
+
+    /* Barra lateral: um tom abaixo do fundo do app */
+    --sidebar: 40 14% 95%;
+    --sidebar-foreground: 30 6% 16%;
+    --sidebar-accent: 40 10% 89.5%;
+    --sidebar-border: 36 10% 86%;
+
+    /* Acento para texto e ícones (AA sobre o fundo) e sua versão suave */
+    --brand: 186 60% 24%;
+    --brand-soft: 186 35% 92%;
+
+    /* Estados */
+    --recording: 0 78% 50%;
+    --success: 150 55% 25%;
+    --success-soft: 145 42% 92%;
+    --warning: 32 85% 28%;
+    --warning-soft: 42 85% 91%;
+    --danger: 0 70% 40%;
+    --danger-soft: 0 75% 96%;
+
+    --scrollbar: 36 8% 78%;
+
+    --chart-1: 186 60% 30%;
+    --chart-2: 150 45% 38%;
+    --chart-3: 32 75% 45%;
+    --chart-4: 262 35% 52%;
+    --chart-5: 0 60% 52%;
   }
 
   .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    color-scheme: dark;
+
+    --background: 30 3% 11%;
+    --foreground: 40 10% 92%;
+    --card: 30 3% 13.5%;
+    --card-foreground: 40 10% 92%;
+    --popover: 30 3% 15%;
+    --popover-foreground: 40 10% 92%;
+    --primary: 186 48% 33%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 30 3% 18%;
+    --secondary-foreground: 40 10% 92%;
+    --muted: 30 3% 16.5%;
+    --muted-foreground: 36 6% 66%;
+    --accent: 30 3% 20%;
+    --accent-foreground: 40 10% 94%;
+    --destructive: 0 62% 48%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 30 4% 21%;
+    --input: 30 4% 27%;
+    --ring: 186 45% 55%;
+
+    --sidebar: 30 3% 8.5%;
+    --sidebar-foreground: 40 8% 86%;
+    --sidebar-accent: 30 3% 15.5%;
+    --sidebar-border: 30 4% 16%;
+
+    --brand: 186 45% 64%;
+    --brand-soft: 186 30% 17%;
+
+    --recording: 0 78% 58%;
+    --success: 150 45% 64%;
+    --success-soft: 150 28% 15%;
+    --warning: 38 85% 66%;
+    --warning-soft: 36 40% 15%;
+    --danger: 0 85% 74%;
+    --danger-soft: 0 35% 17%;
+
+    --scrollbar: 30 4% 30%;
+
+    --chart-1: 186 45% 60%;
+    --chart-2: 150 45% 58%;
+    --chart-3: 36 80% 60%;
+    --chart-4: 262 55% 72%;
+    --chart-5: 0 75% 68%;
   }
 }
 
@@ -138,11 +188,25 @@
     @apply border-border;
   }
 
-  /* html, */
   body {
     @apply bg-background text-foreground;
     overflow: hidden;
     height: 100%;
+    font-size: 14px;
+    line-height: 1.45;
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Foco de teclado visível em qualquer controle */
+  :where(a, button, [role="button"], [role="tab"], [role="menuitem"], [role="option"], input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.22);
   }
 
   /* Make the window draggable */
@@ -158,7 +222,8 @@
 
   /* Custom scrollbar styles */
   .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
+    width: 8px;
+    height: 8px;
   }
 
   .custom-scrollbar::-webkit-scrollbar-track {
@@ -166,49 +231,249 @@
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #d1d5db;
-    border-radius: 3px;
+    background: hsl(var(--scrollbar));
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: content-box;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #9ca3af;
+    background: hsl(var(--muted-foreground) / 0.6);
+    background-clip: content-box;
   }
 
   /* Firefox scrollbar */
   .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: #d1d5db transparent;
+    scrollbar-color: hsl(var(--scrollbar)) transparent;
+  }
+}
+
+/* Fora de @layer: o Tailwind remove de @layer as classes que não aparecem no código (as do BlockNote) */
+/* BlockNote Editor - Override fixed dimensions for responsive layout */
+.bn-container,
+.bn-container[data-color-scheme] {
+  width: 100% !important;
+  max-width: none !important;
+  overflow: visible !important;
+  /* O editor herda as superfícies do app nos dois temas */
+  --bn-colors-editor-background: transparent;
+  --bn-colors-editor-text: hsl(var(--foreground));
+  --bn-colors-menu-background: hsl(var(--popover));
+  --bn-colors-menu-text: hsl(var(--popover-foreground));
+  --bn-colors-tooltip-background: hsl(var(--popover));
+  --bn-colors-tooltip-text: hsl(var(--popover-foreground));
+  --bn-colors-hovered-background: hsl(var(--accent));
+  --bn-colors-hovered-text: hsl(var(--accent-foreground));
+  --bn-colors-selected-background: hsl(var(--primary));
+  --bn-colors-selected-text: hsl(var(--primary-foreground));
+  --bn-colors-border: hsl(var(--border));
+  --bn-colors-side-menu: hsl(var(--muted-foreground));
+  --bn-font-family: inherit;
+  background: transparent !important;
+  color: hsl(var(--foreground));
+}
+
+.bn-container .bn-editor,
+.bn-shadcn .bn-editor {
+  width: 100% !important;
+  max-width: none !important;
+  overflow: visible !important;
+  background: transparent !important;
+  color: hsl(var(--foreground));
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* Disable internal scrolling - let parent handle all scrolling */
+.ProseMirror {
+  overflow: visible !important;
+}
+
+/* Ensure BlockNote content area is responsive */
+.bn-block-outer {
+  max-width: 100% !important;
+}
+
+.bn-default-styles {
+  max-width: none !important;
+}
+
+/* Disable scrolling on any BlockNote wrapper elements */
+[data-node-type] {
+  overflow: visible !important;
+}
+
+/* Títulos do editor em escala de leitura, não de página */
+.bn-container [data-content-type="heading"] { --level: 1.5em; }
+.bn-container [data-content-type="heading"][data-level="2"] { --level: 1.25em; }
+.bn-container [data-content-type="heading"][data-level="3"] { --level: 1.1em; }
+
+
+@layer components {
+  /* Texto de leitura (transcrição, resumo): 15 px */
+  .reading {
+    font-size: 15px;
+    line-height: 1.6;
   }
 
-  /* BlockNote Editor - Override fixed dimensions for responsive layout */
-  .bn-container {
-    width: 100% !important;
-    max-width: none !important;
-    overflow: visible !important;
+  /* Coluna central calma */
+  .content-column {
+    @apply mx-auto w-full max-w-[820px] px-6;
   }
 
-  .bn-editor {
-    width: 100% !important;
-    max-width: none !important;
-    overflow: visible !important;
+  .skeleton {
+    @apply animate-pulse rounded-md bg-muted;
   }
+}
 
-  /* Disable internal scrolling - let parent handle all scrolling */
-  .ProseMirror {
-    overflow: visible !important;
-  }
+/* Toasts (sonner) seguem os tokens */
+html [data-sonner-toaster][data-sonner-theme] {
+  --normal-bg: hsl(var(--popover));
+  --normal-text: hsl(var(--popover-foreground));
+  --normal-border: hsl(var(--border));
+  --success-bg: hsl(var(--success-soft));
+  --success-text: hsl(var(--success));
+  --success-border: hsl(var(--success) / 0.25);
+  --error-bg: hsl(var(--danger-soft));
+  --error-text: hsl(var(--danger));
+  --error-border: hsl(var(--danger) / 0.25);
+  --warning-bg: hsl(var(--warning-soft));
+  --warning-text: hsl(var(--warning));
+  --warning-border: hsl(var(--warning) / 0.25);
+  --info-bg: hsl(var(--brand-soft));
+  --info-text: hsl(var(--brand));
+  --info-border: hsl(var(--brand) / 0.25);
+  font-family: inherit;
+}
 
-  /* Ensure BlockNote content area is responsive */
-  .bn-block-outer {
-    max-width: 100% !important;
-  }
+[data-sonner-toast] {
+  border-radius: 10px !important;
+  box-shadow: 0 4px 16px hsl(0 0% 0% / 0.08) !important;
+}
 
-  .bn-default-styles {
-    max-width: none !important;
-  }
+/*
+ * Compatibilidade de tema escuro.
+ * Algumas telas ainda usam utilitários fixos (bg-white, text-gray-*). Enquanto não migram para os
+ * tokens, o tema escuro os remapeia aqui para as mesmas superfícies. Não use estas classes em código novo.
+ */
+.dark .bg-white {
+  background-color: hsl(var(--card));
+}
 
-  /* Disable scrolling on any BlockNote wrapper elements */
-  [data-node-type] {
-    overflow: visible !important;
+.dark .bg-gray-50,
+.dark .bg-gray-100,
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-gray-100:hover {
+  background-color: hsl(var(--muted));
+}
+
+.dark .bg-gray-200,
+.dark .bg-gray-300,
+.dark .hover\:bg-gray-200:hover {
+  background-color: hsl(var(--accent));
+}
+
+.dark .bg-gray-800,
+.dark .bg-gray-900 {
+  background-color: hsl(var(--primary));
+}
+
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700,
+.dark .text-black {
+  color: hsl(var(--foreground));
+}
+
+.dark .text-gray-600,
+.dark .text-gray-500,
+.dark .text-gray-400 {
+  color: hsl(var(--muted-foreground));
+}
+
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: hsl(var(--border));
+}
+
+.dark .bg-emerald-50,
+.dark .bg-emerald-100,
+.dark .bg-green-50,
+.dark .bg-green-100 {
+  background-color: hsl(var(--success-soft));
+}
+
+.dark .text-emerald-700,
+.dark .text-emerald-800,
+.dark .text-emerald-900,
+.dark .text-green-700,
+.dark .text-green-800 {
+  color: hsl(var(--success));
+}
+
+.dark .bg-amber-50,
+.dark .bg-amber-100,
+.dark .bg-yellow-50 {
+  background-color: hsl(var(--warning-soft));
+}
+
+.dark .text-amber-700,
+.dark .text-amber-800,
+.dark .text-amber-900,
+.dark .text-amber-950 {
+  color: hsl(var(--warning));
+}
+
+.dark .border-amber-200,
+.dark .border-amber-300 {
+  border-color: hsl(var(--warning) / 0.3);
+}
+
+.dark .bg-red-50,
+.dark .bg-red-100 {
+  background-color: hsl(var(--danger-soft));
+}
+
+.dark .text-red-600,
+.dark .text-red-700,
+.dark .text-red-800 {
+  color: hsl(var(--danger));
+}
+
+.dark .bg-blue-50,
+.dark .bg-blue-100,
+.dark .bg-sky-50 {
+  background-color: hsl(var(--brand-soft));
+}
+
+.dark .text-blue-600,
+.dark .text-blue-700,
+.dark .text-blue-800,
+.dark .text-sky-950 {
+  color: hsl(var(--brand));
+}
+
+.dark .border-sky-300,
+.dark .border-blue-200 {
+  border-color: hsl(var(--brand) / 0.3);
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.dark select,
+.dark textarea {
+  background-color: transparent;
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

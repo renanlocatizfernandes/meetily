@@ -5,11 +5,17 @@ import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { useLiveAssist, LiveAssistSettings as Settings } from '@/contexts/LiveAssistContext';
+import { useRecordingState } from '@/contexts/RecordingStateContext';
+import { ShortcutCard } from '@/components/LiveAssist/ShortcutCard';
+import { LatencyBenchmarkCard } from '@/components/LiveAssist/LatencyBenchmarkCard';
+import { VoiceModelCard } from '@/components/VoiceModel/VoiceModelCard';
+import { ContextProfileCard } from '@/components/LiveAssist/ContextProfileCard';
 
 const CLOUD_PROVIDERS = new Set(['openai', 'claude', 'groq', 'openrouter', 'custom-openai']);
 
 export function LiveAssistSettings() {
-  const { settings, settingsLoaded, saveSettings } = useLiveAssist();
+  const { settings, settingsLoaded, saveSettings, status } = useLiveAssist();
+  const { isRecording } = useRecordingState();
   const [draft, setDraft] = useState<Settings>(settings);
   const [saving, setSaving] = useState(false);
   const [models, setModels] = useState<string[]>([]);
@@ -43,7 +49,15 @@ export function LiveAssistSettings() {
     }
   };
 
+  // "Usar este modelo" of the speed test: same save path as the Salvar button.
+  const applyBenchmarkedModel = async (model: string) => {
+    const next = { ...draft, model };
+    setDraft(next);
+    await saveSettings(next);
+  };
+
   return (
+    <>
     <div className="mx-auto mt-8 max-w-2xl space-y-6 rounded-xl border border-gray-200 bg-white p-6">
       <div>
         <h2 className="text-lg font-semibold text-gray-900">Ajuda ao vivo</h2>
@@ -125,5 +139,14 @@ export function LiveAssistSettings() {
         {saving ? 'Salvando…' : 'Salvar'}
       </button>
     </div>
+    <ContextProfileCard />
+    <ShortcutCard />
+    <LatencyBenchmarkCard
+      currentModel={settings.model}
+      recording={isRecording || status.recording}
+      onUseModel={applyBenchmarkedModel}
+    />
+    <VoiceModelCard />
+    </>
   );
 }

@@ -6,6 +6,32 @@ import Analytics from '@/lib/analytics';
 import { invoke } from '@tauri-apps/api/core';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import type { SummaryProcessResponse } from '@/types';
+import {
+  listMeetingsOrganized,
+  listenOrganizeEvents,
+  plainMeetingOrg,
+  type GroupBy,
+  type MeetingOrg,
+} from '@/lib/organize';
+
+const COLLAPSED_STORAGE_KEY = 'meetily.sidebar.collapsed';
+const GROUP_BY_STORAGE_KEY = 'meetily.sidebar.groupBy';
+
+function readStored(key: string): string | null {
+  try {
+    return typeof window === 'undefined' ? null : localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Preferência de layout é opcional.
+  }
+}
 
 
 
@@ -64,6 +90,13 @@ interface SidebarContextType {
   stopSummaryPolling: (meetingId: string, processId?: string) => void;
   // Refetch meetings from backend
   refetchMeetings: () => Promise<void>;
+  // Conversas organizadas (cliente, categoria, fixadas). Cai para a lista simples se o backend não tiver o recurso.
+  organizedMeetings: MeetingOrg[];
+  organizeAvailable: boolean;
+  isLoadingMeetings: boolean;
+  upsertOrganizedMeeting: (meeting: MeetingOrg) => void;
+  groupBy: GroupBy;
+  setGroupBy: (groupBy: GroupBy) => void;
 
 }
 
@@ -79,7 +112,10 @@ export const useSidebar = () => {
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const [currentMeeting, setCurrentMeeting] = useState<CurrentMeeting | null>({ id: 'intro-call', title: '+ New Call' });
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [organized, setOrganized] = useState<MeetingOrg[] | null>(null);
+  const [isLoadingMeetings, setIsLoadingMeetings] = useState(true);
+  const [groupBy, setGroupByState] = useState<GroupBy>('date');
   const [doodlePath, setDoodlePath] = useState<string | null>(null);
   const [doodleDate, setDoodleDate] = useState<string | null>(null);
   const [meetings, setMeetings] = useState<CurrentMeeting[]>([]);
@@ -113,6 +149,8 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   // Extract fetchMeetings as a reusable function
   const fetchMeetings = React.useCallback(async () => {
     if (serverAddress) {
+      // A lista organizada é opcional: `null` significa "use a lista simples".
+      const organizedPromise = listMeetingsOrganized();
       try {
         const meetings = await invoke('api_get_meetings') as Array<{ id: string, title: string }>;
         const transformedMeetings = meetings.map((meeting: any) => ({
@@ -120,11 +158,16 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
           title: meeting.title
         }));
         setMeetings(transformedMeetings);
+        setOrganized(await organizedPromise);
         Analytics.trackBackendConnection(true);
       } catch (error) {
         console.error('Error fetching meetings:', error);
-        setMeetings([]);
+        const organizedList = await organizedPromise;
+        setOrganized(organizedList);
+        setMeetings(organizedList ? organizedList.map(({ id, title }) => ({ id, title })) : []);
         Analytics.trackBackendConnection(false, error instanceof Error ? error.message : 'Unknown error');
+      } finally {
+        setIsLoadingMeetings(false);
       }
     }
   }, [serverAddress]);
@@ -144,7 +187,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const baseItems: SidebarItem[] = [
     {
       id: 'meetings',
-      title: 'Meeting Notes',
+      title: 'Reuniões',
       type: 'folder' as const,
       children: [
         ...meetings.map(meeting => ({ id: meeting.id, title: meeting.title, type: 'file' as const }))
@@ -154,8 +197,71 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
 
 
   const toggleCollapse = () => {
-    setIsCollapsed(!isCollapsed);
+    setIsCollapsed((current) => {
+      writeStored(COLLAPSED_STORAGE_KEY, current ? '0' : '1');
+      return !current;
+    });
   };
+
+  // Restaura as preferências da barra lateral
+  useEffect(() => {
+    setIsCollapsed(readStored(COLLAPSED_STORAGE_KEY) === '1');
+    const storedGroupBy = readStored(GROUP_BY_STORAGE_KEY);
+    if (storedGroupBy === 'date' || storedGroupBy === 'client' || storedGroupBy === 'category') {
+      setGroupByState(storedGroupBy);
+    }
+  }, []);
+
+  const setGroupBy = React.useCallback((next: GroupBy) => {
+    setGroupByState(next);
+    writeStored(GROUP_BY_STORAGE_KEY, next);
+  }, []);
+
+  // Atualiza (ou insere) uma linha organizada e mantém o título da lista simples em sincronia
+  const upsertOrganizedMeeting = React.useCallback((meeting: MeetingOrg) => {
+    setOrganized((current) => {
+      if (current === null) return current;
+      return current.some((item) => item.id === meeting.id)
+        ? current.map((item) => (item.id === meeting.id ? meeting : item))
+        : [meeting, ...current];
+    });
+    if (meeting.title) {
+      setMeetings((current) => current.map((item) => (
+        item.id === meeting.id && item.title !== meeting.title ? { ...item, title: meeting.title } : item
+      )));
+      setCurrentMeeting((current) => (
+        current && current.id === meeting.id && current.title !== meeting.title
+          ? { ...current, title: meeting.title }
+          : current
+      ));
+    }
+  }, []);
+
+  // O backend avisa quando termina de organizar uma reunião
+  useEffect(() => {
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    listenOrganizeEvents({ onOrganized: upsertOrganizedMeeting }).then((unlisten) => {
+      if (disposed) unlisten();
+      else cleanup = unlisten;
+    });
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  }, [upsertOrganizedMeeting]);
+
+  // A lista simples é a fonte de quais reuniões existem e do título; a organizada acrescenta os metadados.
+  const organizedMeetings = React.useMemo<MeetingOrg[]>(() => {
+    if (organized === null) {
+      return meetings.map((meeting) => plainMeetingOrg(meeting.id, meeting.title));
+    }
+    const byId = new Map(organized.map((item) => [item.id, item]));
+    return meetings.map((meeting) => {
+      const item = byId.get(meeting.id);
+      return item ? { ...item, title: meeting.title || item.title } : plainMeetingOrg(meeting.id, meeting.title);
+    });
+  }, [organized, meetings]);
 
   // Update current meeting when on home page
   useEffect(() => {
@@ -246,7 +352,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
             start: processId,
             end: null,
             data: null,
-            error: 'Summary generation timed out after 15 minutes. Please try again or check your model configuration.',
+            error: 'A geração do resumo passou de 15 minutos. Tente de novo ou confira a configuração do modelo.',
           });
           if (summaryPollsRef.current.get(meetingId) === entry) {
             stopSummaryPolling(meetingId, processId);
@@ -283,7 +389,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
             start: processId,
             end: null,
             data: null,
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: error instanceof Error ? error.message : 'Erro desconhecido',
           });
         } catch (callbackError) {
           console.error('Failed to handle summary polling error:', callbackError);
@@ -335,6 +441,12 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       startSummaryPolling,
       stopSummaryPolling,
       refetchMeetings: fetchMeetings,
+      organizedMeetings,
+      organizeAvailable: organized !== null,
+      isLoadingMeetings,
+      upsertOrganizedMeeting,
+      groupBy,
+      setGroupBy,
 
     }}>
       {children}

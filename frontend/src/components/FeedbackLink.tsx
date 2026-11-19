@@ -12,20 +12,20 @@ export default function FeedbackLink({ isCollapsed }: { isCollapsed: boolean }) 
     <Link
       href="/feedback"
       replace={pathname === '/settings'}
-      aria-label="Send Feedback"
+      aria-label="Enviar feedback"
       aria-current={isActive ? 'page' : undefined}
-      className={`flex items-center justify-center rounded-lg transition-colors active:bg-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2 ${
+      className={`flex items-center justify-center rounded-lg transition-colors active:bg-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
         isCollapsed
           ? 'p-2'
           : 'w-full px-3 py-1.5 mt-1 mb-2 text-sm font-medium shadow-sm'
       } ${
         isCollapsed
-          ? `text-gray-600 ${isActive ? 'bg-gray-100' : 'hover:bg-gray-100'}`
-          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          ? `text-muted-foreground ${isActive ? 'bg-muted' : 'hover:bg-muted'}`
+          : 'bg-accent text-foreground hover:bg-border'
       }`}
     >
       <MessagesSquare aria-hidden="true" className={isCollapsed ? 'w-5 h-5' : 'w-4 h-4'} />
-      {!isCollapsed && <span className="ml-2">Send Feedback</span>}
+      {!isCollapsed && <span className="ml-2">Enviar feedback</span>}
     </Link>
   );
 
@@ -34,7 +34,7 @@ export default function FeedbackLink({ isCollapsed }: { isCollapsed: boolean }) 
   return (
     <Tooltip>
       <TooltipTrigger asChild>{link}</TooltipTrigger>
-      <TooltipContent side="right">Send Feedback</TooltipContent>
+      <TooltipContent side="right">Enviar feedback</TooltipContent>
     </Tooltip>
   );
 }

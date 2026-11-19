@@ -117,6 +117,28 @@ const PARAKEET_V2_ARTIFACTS: &[ArtifactSpec] = &[
     ArtifactSpec { filename: "vocab.txt", exact_bytes: 9_384 },
 ];
 
+// Parakeet TDT 0.6B v3 fine-tuned for Brazilian Portuguese on the TAGARELA
+// podcast dataset. Same onnx-asr layout as the istupakov exports. CC-BY-4.0.
+// Repository https://huggingface.co/alefiury/parakeet-tdt-0.6b-v3-ptBR-TAGARELA-onnx
+// pinned at the commit below; every file was downloaded on 2026-11-19 and its
+// size and SHA-256 are recorded in `model_advisor::catalog`.
+const PARAKEET_V3_PTBR_TAGARELA_BASE_URL: &str = "https://huggingface.co/alefiury/parakeet-tdt-0.6b-v3-ptBR-TAGARELA-onnx/resolve/6235416f71c11eeaf81c534c9a78b1ebd38ecdb9";
+
+const PARAKEET_V3_PTBR_TAGARELA_INT8_ARTIFACTS: &[ArtifactSpec] = &[
+    ArtifactSpec { filename: "encoder-model.int8.onnx", exact_bytes: 654_315_802 },
+    ArtifactSpec { filename: "decoder_joint-model.int8.onnx", exact_bytes: 18_309_470 },
+    ArtifactSpec { filename: "nemo128.onnx", exact_bytes: 139_764 },
+    ArtifactSpec { filename: "vocab.txt", exact_bytes: 93_939 },
+];
+
+const PARAKEET_V3_PTBR_TAGARELA_FP32_ARTIFACTS: &[ArtifactSpec] = &[
+    ArtifactSpec { filename: "encoder-model.onnx", exact_bytes: 41_842_954 },
+    ArtifactSpec { filename: "encoder-model.onnx.data", exact_bytes: 2_435_420_160 },
+    ArtifactSpec { filename: "decoder_joint-model.onnx", exact_bytes: 72_520_893 },
+    ArtifactSpec { filename: "nemo128.onnx", exact_bytes: 139_764 },
+    ArtifactSpec { filename: "vocab.txt", exact_bytes: 93_939 },
+];
+
 const PARAKEET_MODEL_SPECS: &[ModelSpec] = &[
     ModelSpec {
         name: "parakeet-tdt-0.6b-v3-int8",
@@ -136,7 +158,40 @@ const PARAKEET_MODEL_SPECS: &[ModelSpec] = &[
         source_base_url: "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/resolve/0bbb45a3365852604aef28b538a8f066f4ccaa85",
         artifacts: PARAKEET_V2_ARTIFACTS,
     },
+    ModelSpec {
+        name: "parakeet-tdt-0.6b-v3-ptbr-tagarela-int8",
+        size_mb: 673,
+        quantization: QuantizationType::Int8,
+        speed: "Ultra Fast (pt-BR)",
+        description: "Parakeet v3 ajustado para português do Brasil (TAGARELA), int8",
+        source_base_url: PARAKEET_V3_PTBR_TAGARELA_BASE_URL,
+        artifacts: PARAKEET_V3_PTBR_TAGARELA_INT8_ARTIFACTS,
+    },
+    ModelSpec {
+        name: "parakeet-tdt-0.6b-v3-ptbr-tagarela-fp32",
+        size_mb: 2550,
+        quantization: QuantizationType::FP32,
+        speed: "Fast (pt-BR)",
+        description: "Parakeet v3 ajustado para português do Brasil (TAGARELA), precisão total",
+        source_base_url: PARAKEET_V3_PTBR_TAGARELA_BASE_URL,
+        artifacts: PARAKEET_V3_PTBR_TAGARELA_FP32_ARTIFACTS,
+    },
 ];
+
+/// Catalogued models as (name, pinned base URL, [(file, exact bytes)]), for
+/// the model advisor and its integrity tests.
+pub(crate) fn catalog_sources() -> Vec<(&'static str, &'static str, Vec<(&'static str, u64)>)> {
+    PARAKEET_MODEL_SPECS
+        .iter()
+        .map(|spec| {
+            (
+                spec.name,
+                spec.source_base_url,
+                spec.artifacts.iter().map(|artifact| (artifact.filename, artifact.exact_bytes)).collect(),
+            )
+        })
+        .collect()
+}
 
 fn find_model_spec(model_name: &str) -> Option<&'static ModelSpec> {
     PARAKEET_MODEL_SPECS

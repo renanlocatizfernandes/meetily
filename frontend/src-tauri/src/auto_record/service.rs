@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -10,8 +10,9 @@ use crate::notifications::commands::{show_recording_started_notification, Notifi
 use crate::state::AppState;
 
 use super::detect::{self, MeetingApp};
-use super::machine::{Action, DetectorMachine, StepInput};
-use super::settings::{self, AutoRecordSettings};
+use super::end_service::EndWatcher;
+use super::machine::{Action, DetectorMachine, Phase, StepInput};
+use super::settings::{self, mode_after_toggle, AutoRecordSettings, Mode};
 use super::snapshot;
 
 static USER_HOLD: AtomicBool = AtomicBool::new(false);
@@ -24,6 +25,55 @@ static WATCH: Mutex<Watch> = Mutex::new(Watch {
     hint: "Nenhuma reunião detectada. Abra o Teams, o Zoom ou o Meet, entre numa chamada e acompanhe o status aqui.",
     seconds_left: None,
 });
+
+/// The open "record this call?" prompt of the "ask" mode.
+struct PendingPrompt {
+    id: u64,
+    answer: Option<bool>,
+}
+
+static PROMPT: Mutex<Option<PendingPrompt>> = Mutex::new(None);
+static NEXT_PROMPT_ID: AtomicU64 = AtomicU64::new(1);
+/// Wakes the detector loop as soon as a prompt is answered.
+static WAKE: once_cell::sync::Lazy<tokio::sync::Notify> = once_cell::sync::Lazy::new(tokio::sync::Notify::new);
+
+const HINT_DISABLED: &str = "Gravação automática desligada nas configurações.";
+const HINT_PRIVACY: &str = "Gravação automática em espera: falta responder à escolha de privacidade.";
+const HINT_PROMPT: &str = "Reunião detectada. Aguardando a sua confirmação para gravar.";
+
+/// Prompt ids are unique across the "record?" and the "meeting ended?" warnings.
+pub(super) fn next_prompt_id() -> u64 {
+    NEXT_PROMPT_ID.fetch_add(1, Ordering::SeqCst)
+}
+
+/// Runs the next detector tick right away.
+pub(super) fn wake() {
+    WAKE.notify_one();
+}
+
+fn open_prompt() -> u64 {
+    let id = next_prompt_id();
+    if let Ok(mut slot) = PROMPT.lock() {
+        *slot = Some(PendingPrompt { id, answer: None });
+    }
+    id
+}
+
+/// Takes the answer of the open prompt, if the user already gave one.
+fn take_answer() -> Option<bool> {
+    let mut slot = PROMPT.lock().ok()?;
+    let answer = slot.as_ref()?.answer?;
+    *slot = None;
+    Some(answer)
+}
+
+/// Closes a prompt nobody answered. Returns its id.
+fn close_unanswered_prompt() -> Option<u64> {
+    let mut slot = PROMPT.lock().ok()?;
+    let id = slot.as_ref()?.id;
+    *slot = None;
+    Some(id)
+}
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,10 +93,15 @@ pub fn start(app: AppHandle<Wry>) {
         let mut machine = DetectorMachine::default();
         let origin = Instant::now();
         let mut owned = false;
+        let mut end_watcher = EndWatcher::default();
         loop {
-            tokio::time::sleep(Duration::from_secs(2)).await;
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_secs(2)) => {}
+                _ = WAKE.notified() => {}
+            }
             let user_hold = USER_HOLD.load(Ordering::SeqCst);
-            let enabled = load_enabled(&app).await;
+            let (mode, privacy_pending) = load_effective_mode(&app).await;
+            let enabled = mode != Mode::Off;
             let (windows, inputs) = snapshot::capture();
             let detection = detect::inspect(&windows, &inputs);
             let signal = detection.app;
@@ -62,8 +117,21 @@ pub fn start(app: AppHandle<Wry>) {
                 owned,
                 enabled,
                 user_hold: USER_HOLD.load(Ordering::SeqCst),
+                ask: mode == Mode::Ask,
+                answer: take_answer(),
             });
             match action {
+                Some(Action::Prompt(app_kind)) => {
+                    let prompt_id = open_prompt();
+                    let _ = app.emit(
+                        "auto-record-prompt",
+                        serde_json::json!({
+                            "promptId": prompt_id,
+                            "app": app_kind.label(),
+                        }),
+                    );
+                    info!("Automatic recording is waiting for confirmation");
+                }
                 Some(Action::Start(app_kind)) if !USER_HOLD.load(Ordering::SeqCst) => {
                     match begin(&app, app_kind).await {
                         Ok(()) => {
@@ -88,15 +156,36 @@ pub fn start(app: AppHandle<Wry>) {
                     }
                 }
             }
+            if !matches!(machine.phase(), Phase::Prompting { .. }) {
+                // The call ended, a recording started by hand, or the mode changed.
+                if let Some(prompt_id) = close_unanswered_prompt() {
+                    let _ = app.emit(
+                        "auto-record-prompt-cancelled",
+                        serde_json::json!({ "promptId": prompt_id }),
+                    );
+                }
+            }
+            // End of the meeting, for any recording: call gone or long silence.
+            // Read the recording state again: the block above may have stopped it.
+            let recording_now = recording_commands::is_recording().await;
+            if end_watcher.tick(&app, signal, recording_now, owned).await.is_some() && owned {
+                owned = false;
+                OWNED.store(false, Ordering::SeqCst);
+                emit_status(&app, false, None);
+            }
             let now = Instant::now();
             publish_watch(Watch {
                 active: owned && recording_commands::is_recording().await,
                 app: signal.map(MeetingApp::label).map(str::to_string),
                 phase: machine.phase_name(),
-                hint: if enabled {
-                    detection.hint
+                hint: if privacy_pending {
+                    HINT_PRIVACY
+                } else if !enabled {
+                    HINT_DISABLED
+                } else if matches!(machine.phase(), Phase::Prompting { .. }) {
+                    HINT_PROMPT
                 } else {
-                    "Gravação automática desligada nas configurações."
+                    detection.hint
                 },
                 seconds_left: machine.seconds_until_start(now, origin),
             }, &app);
@@ -134,15 +223,44 @@ pub async fn dismiss(app: AppHandle<Wry>) -> Result<(), String> {
     Ok(())
 }
 
-async fn load_enabled(app: &AppHandle<Wry>) -> bool {
+/// Answers the open "ask" prompt. Accepting starts the recording on the
+/// detector loop; refusing keeps this call quiet until it ends.
+pub fn answer_prompt(prompt_id: u64, accept: bool) -> Result<(), String> {
+    {
+        let mut slot = PROMPT
+            .lock()
+            .map_err(|_| "Não foi possível responder ao aviso de gravação.".to_string())?;
+        match slot.as_mut() {
+            Some(pending) if pending.id == prompt_id && pending.answer.is_none() => {
+                pending.answer = Some(accept);
+            }
+            _ => return Err("Este aviso de gravação não está mais ativo.".to_string()),
+        }
+    }
+    WAKE.notify_one();
+    Ok(())
+}
+
+/// The stored mode, forced to off until the one-time privacy choice is made.
+/// The second value says whether that choice is still pending.
+async fn load_effective_mode(app: &AppHandle<Wry>) -> (Mode, bool) {
     let Some(state) = app.try_state::<AppState>() else {
-        return false;
+        return (Mode::Off, false);
     };
-    match settings::load_settings(state.db_manager.pool()).await {
-        Ok(settings) => settings.enabled,
+    let pool = state.db_manager.pool();
+    match crate::assist_plus::privacy::is_done(pool).await {
+        Ok(true) => {}
+        Ok(false) => return (Mode::Off, true),
+        Err(error) => {
+            warn!("Privacy choice was not read ({error})");
+            return (Mode::Off, false);
+        }
+    }
+    match settings::load_settings(pool).await {
+        Ok(settings) => (settings.mode(), false),
         Err(error) => {
             warn!("Automatic recording settings were not read ({error})");
-            false
+            (Mode::Off, false)
         }
     }
 }
@@ -166,6 +284,12 @@ async fn begin(app: &AppHandle<Wry>, kind: MeetingApp) -> Result<(), String> {
     }
     info!("Automatic recording started for {}", kind.label());
     Ok(())
+}
+
+/// Stops whatever is being recorded through the normal stop path (channels
+/// drained and flushed, file saved, post-processing triggered).
+pub(super) async fn stop_recording_now(app: &AppHandle<Wry>) -> bool {
+    stop_owned(app).await
 }
 
 async fn stop_owned(app: &AppHandle<Wry>) -> bool {
@@ -216,13 +340,27 @@ pub async fn get_settings(app: AppHandle<Wry>) -> Result<AutoRecordSettings, Str
         .map_err(|_| "Não foi possível ler a gravação automática.".to_string())
 }
 
-pub async fn save(app: AppHandle<Wry>, enabled: bool) -> Result<AutoRecordSettings, String> {
+/// `mode` wins when it is given. Without it the older `enabled` switch
+/// applies: off turns it off, on keeps the current mode ("ask" if it was off).
+pub async fn save(app: AppHandle<Wry>, enabled: bool, mode: Option<String>) -> Result<AutoRecordSettings, String> {
     let state = app
         .try_state::<AppState>()
         .ok_or_else(|| "Banco de dados indisponível".to_string())?;
-    let settings = AutoRecordSettings { enabled };
-    settings::save_settings(state.db_manager.pool(), &settings)
+    let pool = state.db_manager.pool();
+    let next = match mode.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+        Some(value) => Mode::parse(value)
+            .ok_or_else(|| "Modo de gravação automática inválido. Use off, ask ou auto.".to_string())?,
+        None => {
+            let current = settings::load_settings(pool)
+                .await
+                .map_err(|_| "Não foi possível ler a gravação automática.".to_string())?
+                .mode();
+            mode_after_toggle(current, enabled)
+        }
+    };
+    settings::save_mode(pool, next)
         .await
         .map_err(|_| "Não foi possível salvar a gravação automática.".to_string())?;
-    Ok(settings)
+    WAKE.notify_one();
+    Ok(AutoRecordSettings::from_mode(next))
 }

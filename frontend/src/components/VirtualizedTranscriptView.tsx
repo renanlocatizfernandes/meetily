@@ -95,7 +95,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
             <div className="flex items-start gap-2">
                 <Tooltip>
                     <TooltipTrigger>
-                        <span className="text-xs text-gray-400 mt-1 flex-shrink-0 min-w-[50px]">
+                        <span className="text-xs text-muted-foreground/80 mt-1 flex-shrink-0 min-w-[50px]">
                             {formatRecordingTime(timestamp)}
                         </span>
                     </TooltipTrigger>
@@ -110,7 +110,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
                         speakerKey && onRenameSpeaker ? (
                             <button
                                 type="button"
-                                className="mb-0.5 text-[11px] font-medium text-gray-500 underline decoration-dotted"
+                                className="mb-0.5 text-[11px] font-medium text-muted-foreground underline decoration-dotted"
                                 title="Renomear esta pessoa"
                                 onClick={() => {
                                     const next = window.prompt('Nome desta pessoa', speakerLabel);
@@ -120,15 +120,15 @@ const TranscriptSegment = memo(function TranscriptSegment({
                                 {speakerLabel}
                             </button>
                         ) : (
-                            <p className="text-[11px] font-medium text-gray-500 mb-0.5">{speakerLabel}</p>
+                            <p className="text-[11px] font-medium text-muted-foreground mb-0.5">{speakerLabel}</p>
                         )
                     )}
                     {isStreaming ? (
-                        <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-                            <p className="text-base text-gray-800 leading-relaxed">{displayText}</p>
+                        <div className="bg-muted border border-border rounded-lg px-3 py-2">
+                            <p className="text-base text-foreground leading-relaxed">{displayText}</p>
                         </div>
                     ) : (
-                        <p className="text-base text-gray-800 leading-relaxed">{displayText}</p>
+                        <p className="text-base text-foreground leading-relaxed">{displayText}</p>
                     )}
                 </div>
             </div>
@@ -255,7 +255,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
             {/* Recording Status Bar - Sticky at top, always visible when recording */}
             <AnimatePresence>
                 {isRecording && (
-                    <div className="sticky top-0 z-10 bg-white pb-2">
+                    <div className="sticky top-0 z-10 bg-background pb-2">
                         <RecordingStatusBar isPaused={isPaused} />
                     </div>
                 )}
@@ -268,24 +268,24 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="text-center text-gray-500 mt-8"
+                    className="text-center text-muted-foreground mt-[18vh]"
                 >
                     {isRecording ? (
                         <>
                             <div className="flex items-center justify-center mb-3">
-                                <div className={`w-3 h-3 rounded-full ${isPaused ? 'bg-orange-500' : 'bg-blue-500 animate-pulse'}`}></div>
+                                <div className={`w-3 h-3 rounded-full ${isPaused ? 'bg-warning' : 'bg-recording animate-pulse'}`}></div>
                             </div>
-                            <p className="text-sm text-gray-600">
-                                {isPaused ? 'Recording paused' : 'Listening for speech...'}
+                            <p className="text-sm text-muted-foreground">
+                                {isPaused ? 'Gravação pausada' : 'Ouvindo…'}
                             </p>
-                            <p className="text-xs mt-1 text-gray-400">
-                                {isPaused ? 'Click resume to continue recording' : 'Speak to see live transcription'}
+                            <p className="text-xs mt-1 text-muted-foreground/80">
+                                {isPaused ? 'Retome para continuar gravando.' : 'A transcrição aparece aqui assim que alguém falar.'}
                             </p>
                         </>
                     ) : (
                         <>
-                            <p className="text-lg font-semibold">Welcome to meetily!</p>
-                            <p className="text-xs mt-1">Start recording to see live transcription</p>
+                            <p className="text-base font-medium text-foreground">Pronto para gravar</p>
+                            <p className="mt-1 text-sm">Use o botão vermelho abaixo para iniciar a gravação e ver a transcrição ao vivo.</p>
                         </>
                     )}
                 </motion.div>
@@ -336,13 +336,13 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                     {(hasMore || isLoadingMore) && !isRecording && segments.length > 0 && (
                         <div ref={loadMoreTriggerRef} className="flex justify-center items-center py-4 mt-2">
                             {isLoadingMore ? (
-                                <div className="flex items-center gap-2 text-gray-500">
-                                    <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                                    <span className="text-sm">Loading more...</span>
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                    <div className="w-4 h-4 border-2 border-border border-t-gray-600 rounded-full animate-spin" />
+                                    <span className="text-sm">Carregando mais...</span>
                                 </div>
                             ) : hasMore && totalCount > 0 ? (
-                                <span className="text-sm text-gray-400">
-                                    Showing {loadedCount} of {totalCount} segments
+                                <span className="text-sm text-muted-foreground/80">
+                                    Mostrando {loadedCount} de {totalCount} trechos
                                 </span>
                             ) : null}
                         </div>
@@ -354,10 +354,10 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="flex items-center gap-2 mt-4 text-gray-500"
+                            className="flex items-center gap-2 mt-4 text-muted-foreground"
                         >
-                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                            <span className="text-sm">Listening...</span>
+                            <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                            <span className="text-sm">Ouvindo...</span>
                         </motion.div>
                     )}
                 </>
@@ -395,13 +395,13 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                     {(hasMore || isLoadingMore) && !isRecording && segments.length > 0 && (
                         <div ref={loadMoreTriggerRef} className="flex justify-center items-center py-4 mt-2">
                             {isLoadingMore ? (
-                                <div className="flex items-center gap-2 text-gray-500">
-                                    <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                                    <span className="text-sm">Loading more...</span>
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                    <div className="w-4 h-4 border-2 border-border border-t-gray-600 rounded-full animate-spin" />
+                                    <span className="text-sm">Carregando mais...</span>
                                 </div>
                             ) : hasMore && totalCount > 0 ? (
-                                <span className="text-sm text-gray-400">
-                                    Showing {loadedCount} of {totalCount} segments
+                                <span className="text-sm text-muted-foreground/80">
+                                    Mostrando {loadedCount} de {totalCount} trechos
                                 </span>
                             ) : null}
                         </div>
@@ -413,10 +413,10 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="flex items-center gap-2 mt-4 text-gray-500"
+                            className="flex items-center gap-2 mt-4 text-muted-foreground"
                         >
-                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                            <span className="text-sm">Listening...</span>
+                            <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                            <span className="text-sm">Ouvindo...</span>
                         </motion.div>
                     )}
                 </>

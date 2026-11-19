@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -13,18 +14,48 @@ use uuid::Uuid;
 use crate::database::repositories::setting::SettingsRepository;
 use crate::state::AppState;
 use crate::summary::llm_client::generate_summary;
+use crate::summary::LLMProvider;
 
+use super::context::{
+    direct_items, infer_client, render_context, resolve_origin, AssistOrigin, Budget, ContextSummary, LiveContext, SourceRef,
+    ORIGIN_AGENDA, ORIGIN_TALK,
+};
+use super::context_store::{load_context_settings, load_known_clients, load_past_meetings};
 use super::debounce::{describe_trigger, frequency_gap, InFlightGate, RequestDecision};
 use super::parse::parse_assist_json;
+use super::partial::{extract_partial_items, section_for_kind, PartialItem};
 use super::prompt::{system_prompt, user_prompt};
 use super::settings_store::{load_settings, LiveAssistSettings};
 use super::similarity::ShownSuggestions;
+use super::stream::{stream_ollama_chat, StreamError, StreamLimits};
 use super::target::{resolve_target, LlmTarget, SummaryHint};
 use super::trigger::{classify_segment, PauseWatch, TriggerKind, PAUSE_THRESHOLD};
 use super::window::{TranscriptPiece, TranscriptWindow};
 use crate::assist_plus::{self, FeatureToggles};
 
+/// Whole-call limit for providers that answer in one piece.
 const LIVE_REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
+/// Streaming (Ollama): the model must start answering within this time.
+const LIVE_FIRST_TOKEN_TIMEOUT: Duration = Duration::from_secs(8);
+/// Streaming (Ollama): the whole answer must arrive within this time.
+const LIVE_STREAM_TOTAL_TIMEOUT: Duration = Duration::from_secs(20);
+/// At most about 10 `live-assist-partial` events per second.
+const PARTIAL_MIN_INTERVAL: Duration = Duration::from_millis(100);
+
+/// While the client of the meeting is unknown, the names already heard are
+/// matched again at this pace. In-memory string matching only, no database.
+const CLIENT_CHECK_INTERVAL: Duration = Duration::from_secs(20);
+/// Tail of the conversation kept to find the client. Characters.
+const HEARD_CHAR_LIMIT: usize = 4000;
+const MAX_SPEAKERS: usize = 8;
+
+/// Identifies one model call in `live-assist-partial`. Unique for the app run.
+static NEXT_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
+
+/// "Contexto em uso" of the recording in progress, for a panel that opens late.
+static LAST_CONTEXT: Mutex<Option<ContextSummary>> = Mutex::new(None);
+/// Set when the owner saves settings that change the context.
+static CONTEXT_DIRTY: once_cell::sync::Lazy<tokio::sync::Notify> = once_cell::sync::Lazy::new(tokio::sync::Notify::new);
 
 struct SessionState {
     window: TranscriptWindow,
@@ -33,12 +64,44 @@ struct SessionState {
     shown: ShownSuggestions,
     settings: LiveAssistSettings,
     toggles: FeatureToggles,
+    /// Cached by `context_task`; read by every model call.
+    context: LiveContext,
+    /// Speaker labels seen in this recording, in order of appearance.
+    speakers: Vec<String>,
+    /// Tail of what was said, used only to find the client.
+    heard: String,
+    /// False when the live model is a cloud service.
+    extras_allowed: bool,
+}
+
+impl SessionState {
+    /// Returns true when the label is new.
+    fn note_speaker(&mut self, label: &str) -> bool {
+        if label == "mic" || label == "system" || self.speakers.iter().any(|known| known == label) {
+            return false;
+        }
+        if self.speakers.len() >= MAX_SPEAKERS {
+            return false;
+        }
+        self.speakers.push(label.to_string());
+        true
+    }
+
+    fn note_heard(&mut self, text: &str) {
+        self.heard.push_str(text.trim());
+        self.heard.push('\n');
+        let excess = self.heard.chars().count().saturating_sub(HEARD_CHAR_LIMIT);
+        if excess > 0 {
+            self.heard = self.heard.chars().skip(excess).collect();
+        }
+    }
 }
 
 struct Session {
     cancel: CancellationToken,
     listener_id: tauri::EventId,
     pause_task: JoinHandle<()>,
+    context_task: JoinHandle<()>,
 }
 
 static SESSION: Mutex<Option<Session>> = Mutex::new(None);
@@ -48,11 +111,28 @@ struct AssistItem {
     id: String,
     section: String,
     text: String,
+    /// Where the suggestion came from. Absent when there is nothing to cite.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    origin: Option<AssistOrigin>,
 }
 
 #[derive(Clone, Serialize)]
 struct AssistUpdate {
     items: Vec<AssistItem>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AssistPartial {
+    request_id: u64,
+    items: Vec<PartialItem>,
+    done: bool,
+}
+
+enum CallError {
+    Cancelled,
+    Timeout,
+    Failed,
 }
 
 #[derive(Clone, Serialize)]
@@ -73,7 +153,113 @@ struct Job<R: Runtime> {
     generation: u64,
 }
 
+/// Lets the context of the recording in progress be rebuilt after the owner
+/// changed the profile, the glossary, the switch or the meeting context.
+pub(crate) fn request_context_refresh() {
+    CONTEXT_DIRTY.notify_one();
+}
+
+/// "Contexto em uso" of the recording in progress, if there is one.
+pub(crate) fn current_context_summary() -> Option<ContextSummary> {
+    LAST_CONTEXT.lock().ok().and_then(|guard| guard.clone())
+}
+
+fn publish_context<R: Runtime>(app: &AppHandle<R>, summary: ContextSummary) {
+    if let Ok(mut slot) = LAST_CONTEXT.lock() {
+        if slot.as_ref() == Some(&summary) {
+            return;
+        }
+        *slot = Some(summary.clone());
+    }
+    let _ = app.emit("live-assist-context", summary);
+}
+
+/// Keeps `SessionState::context` current. The database is read when the
+/// recording starts, when the client becomes known and when the owner saves
+/// a setting; between those moments this task only sleeps.
+async fn context_task<R: Runtime>(
+    app: AppHandle<R>,
+    pool: SqlitePool,
+    state: Arc<Mutex<SessionState>>,
+    cancel: CancellationToken,
+) {
+    let mut known: Vec<String> = Vec::new();
+    let mut client: Option<String> = None;
+    let mut reload = true;
+    loop {
+        if reload {
+            known = load_known_clients(&pool).await;
+        }
+        let (typed, heard) = {
+            let Ok(guard) = state.lock() else { return };
+            (guard.settings.meeting_context.clone(), guard.heard.clone())
+        };
+        let meeting_name = crate::audio::recording_commands::get_recording_meeting_name()
+            .await
+            .ok()
+            .flatten();
+        // What the owner typed can name another client; the conversation
+        // alone never replaces a client that was already found.
+        let declared = infer_client(&known, meeting_name.as_deref().unwrap_or(""), &typed, "");
+        let found = declared
+            .or_else(|| client.clone())
+            .or_else(|| infer_client(&known, "", "", &heard));
+        if reload || found != client {
+            client = found;
+            let settings = load_context_settings(&pool).await.unwrap_or_default();
+            let live = load_settings(&pool).await.unwrap_or_default();
+            let toggles = assist_plus::load_effective(&pool).await.unwrap_or_default();
+            let memory_allowed = settings.use_past_meetings && toggles.meeting_memory;
+            let extras_allowed = resolve_target(&load_hint(&pool).await, &live.model)
+                .map(|target| !target.leaves_machine)
+                .unwrap_or(true);
+            let past = match &client {
+                Some(name) => load_past_meetings(&pool, name).await.unwrap_or_default(),
+                None => Vec::new(),
+            };
+            let mentioned = format!("{}\n{typed}\n{heard}", meeting_name.as_deref().unwrap_or(""));
+            let context = LiveContext::assemble(
+                settings,
+                memory_allowed,
+                meeting_name,
+                client.clone(),
+                &mentioned,
+                &past,
+                chrono::Utc::now(),
+            );
+            debug!(
+                "Live assist context rebuilt; client_known={}, past_meetings={}, notes={}, glossary_terms={}, profile_filled={}, local_model={}",
+                context.client.is_some(),
+                context.past_meetings,
+                context.notes.len(),
+                context.settings.glossary_entries().len(),
+                context.settings.profile_filled(),
+                extras_allowed,
+            );
+            let summary = {
+                let Ok(mut guard) = state.lock() else { return };
+                guard.context = context;
+                guard.extras_allowed = extras_allowed;
+                guard.context.summary(&guard.speakers, extras_allowed)
+            };
+            if cancel.is_cancelled() {
+                return;
+            }
+            publish_context(&app, summary);
+        }
+        reload = false;
+        tokio::select! {
+            _ = cancel.cancelled() => return,
+            _ = CONTEXT_DIRTY.notified() => reload = true,
+            // Nothing periodic once the client is known.
+            _ = tokio::time::sleep(CLIENT_CHECK_INTERVAL), if client.is_none() => {}
+        }
+    }
+}
+
 pub fn on_recording_started<R: Runtime>(app: AppHandle<R>) {
+    // A latency benchmark must not compete with a live meeting for the model.
+    super::benchmark::cancel_running();
     on_recording_stopped(&app);
 
     let pool = match app.try_state::<AppState>() {
@@ -92,6 +278,10 @@ pub fn on_recording_started<R: Runtime>(app: AppHandle<R>) {
         shown: ShownSuggestions::default(),
         settings: LiveAssistSettings::default(),
         toggles: FeatureToggles::default(),
+        context: LiveContext::default(),
+        speakers: Vec::new(),
+        heard: String::new(),
+        extras_allowed: true,
     }));
 
     let app_for_events = app.clone();
@@ -118,6 +308,7 @@ pub fn on_recording_started<R: Runtime>(app: AppHandle<R>) {
     let pause_cancel = cancel.clone();
     let pause_state = state.clone();
     let pause_app = app.clone();
+    let context_pool = pool.clone();
     let pause_pool = pool;
     let pause_task = tauri::async_runtime::spawn(async move {
         loop {
@@ -130,11 +321,21 @@ pub fn on_recording_started<R: Runtime>(app: AppHandle<R>) {
         }
     });
 
+    let context_app = app.clone();
+    let context_state = state.clone();
+    let context_cancel = cancel.clone();
+    let context_task = tauri::async_runtime::spawn(async move {
+        // The typed meeting context is part of what names the client.
+        refresh_settings(&context_pool, &context_state).await;
+        context_task(context_app, context_pool, context_state, context_cancel).await;
+    });
+
     if let Ok(mut slot) = SESSION.lock() {
         *slot = Some(Session {
             cancel,
             listener_id,
             pause_task,
+            context_task,
         });
     }
 
@@ -150,6 +351,10 @@ pub fn on_recording_stopped<R: Runtime>(app: &AppHandle<R>) {
     session.cancel.cancel();
     app.unlisten(session.listener_id);
     session.pause_task.abort();
+    session.context_task.abort();
+    if let Ok(mut slot) = LAST_CONTEXT.lock() {
+        *slot = None;
+    }
     emit_status(app, false, false, false, None);
 }
 
@@ -162,7 +367,7 @@ async fn refresh_settings(pool: &SqlitePool, state: &Mutex<SessionState>) -> boo
         }
     };
     let enabled = settings.enabled;
-    let toggles = assist_plus::load(pool).await.unwrap_or_default();
+    let toggles = assist_plus::load_effective(pool).await.unwrap_or_default();
     if let Ok(mut guard) = state.lock() {
         guard.gate.set_min_gap(frequency_gap(&settings.frequency));
         guard.settings = settings;
@@ -238,7 +443,7 @@ async fn handle_transcript<R: Runtime>(
         None
     };
 
-    let job = {
+    let (job, new_speaker) = {
         let Ok(mut guard) = state.lock() else {
             return;
         };
@@ -250,15 +455,20 @@ async fn handle_transcript<R: Runtime>(
             source: source.to_string(),
             text: update.text.clone(),
         });
+        guard.note_heard(&update.text);
+        let new_speaker = guard
+            .note_speaker(source)
+            .then(|| guard.context.summary(&guard.speakers, guard.extras_allowed));
         guard.pause.note_activity(Instant::now());
-        let Some(kind) = kind else {
-            return;
+        let job = match (kind, hint) {
+            (Some(kind), Some(hint)) => begin_job(&app, &state, &pool, &mut guard, kind, &hint),
+            _ => None,
         };
-        let Some(hint) = hint else {
-            return;
-        };
-        begin_job(&app, &state, &pool, &mut guard, kind, &hint)
+        (job, new_speaker)
     };
+    if let Some(summary) = new_speaker {
+        publish_context(&app, summary);
+    }
     spawn_job(job);
 }
 
@@ -363,9 +573,57 @@ async fn run_job<R: Runtime>(job: Job<R>) {
             guard.shown.lines(),
             guard.toggles.internet_search,
             guard.toggles.translation.clone(),
+            guard.context.clone(),
+            guard.speakers.clone(),
         )
     };
-    let (language, context, window, shown, internet, translation) = snapshot;
+    let (language, context, window, shown, internet, translation, live_context, speakers) = snapshot;
+    // Context selection is in-memory text work on a few cached notes.
+    let said_now = format!(
+        "{}\n{}",
+        window.earlier_summary(),
+        window.recent().map(|piece| piece.text.as_str()).collect::<Vec<_>>().join(" ")
+    );
+    let rendered = render_context(
+        &live_context,
+        &speakers,
+        &said_now,
+        Budget::for_typed_context(context.chars().count()),
+        // A cloud model gets nothing it did not get before this feature.
+        !target.leaves_machine,
+    );
+    debug!(
+        "Live assist context in prompt; chars={}, memory_notes={}, glossary_entries={}",
+        rendered.text.chars().count(),
+        rendered.memory_notes,
+        rendered.glossary_entries,
+    );
+    // Glossary terms just said and the earlier note that matches the talk go
+    // to the panel right away, before the model answers.
+    let recent_talk = window.recent().map(|piece| piece.text.as_str()).collect::<Vec<_>>().join(" ");
+    let mut direct = Vec::new();
+    if let Ok(mut guard) = job.state.lock() {
+        for item in direct_items(&live_context, &recent_talk) {
+            if guard.shown.is_repeat("contexto", &item.text) {
+                continue;
+            }
+            guard.shown.remember("contexto", &item.text);
+            direct.push(AssistItem {
+                id: Uuid::new_v4().to_string(),
+                section: "contexto".to_string(),
+                text: item.text,
+                origin: Some(item.origin),
+            });
+        }
+    }
+    if !direct.is_empty() && !job.token.is_cancelled() {
+        debug!("Live assist context items without the model; count={}", direct.len());
+        let _ = job.app.emit("live-assist-update", AssistUpdate { items: direct });
+    }
+    let mut origins: Vec<SourceRef> = rendered.sources;
+    if !context.trim().is_empty() {
+        origins.push(SourceRef::new(AssistOrigin::simple(ORIGIN_AGENDA, "Pauta"), &context));
+    }
     let mut sources = String::new();
     if internet {
         let recent = window
@@ -377,7 +635,9 @@ async fn run_job<R: Runtime>(job: Job<R>) {
         let terms = assist_plus::unknown_terms(&recent, &context);
         for hit in assist_plus::lookup_terms(&job.pool, &terms).await {
             let line = assist_plus::contexto_line(&hit);
-            sources.push_str(&format!("- {line}\n"));
+            sources.push_str(&format!("- [{}] {line}\n", hit.source));
+            let origin = AssistOrigin::internet(&hit.source, &hit.url);
+            origins.push(SourceRef::new(origin.clone(), &hit.extract));
             let _ = job.app.emit(
                 "live-assist-update",
                 AssistUpdate {
@@ -385,6 +645,7 @@ async fn run_job<R: Runtime>(job: Job<R>) {
                         id: Uuid::new_v4().to_string(),
                         section: "contexto".to_string(),
                         text: line,
+                        origin: Some(origin),
                     }],
                 },
             );
@@ -393,32 +654,39 @@ async fn run_job<R: Runtime>(job: Job<R>) {
     if assist_plus::should_translate(&translation, &window.recent().map(|piece| piece.text.as_str()).collect::<Vec<_>>().join(" ")) {
         sources.push_str("Traduza para pt-BR a fala que não estiver em português e sugira a resposta no idioma da reunião.\n");
     }
-    let prompt = user_prompt(&language, &context, &window, &shown, &sources);
-    let request = generate_summary(
-        &client,
-        &target.provider,
-        &target.model,
-        &target.api_key,
-        system_prompt(),
-        &prompt,
-        target.ollama_endpoint.as_deref(),
-        target.custom_openai_endpoint.as_deref(),
-        target.max_tokens,
-        target.temperature,
-        target.top_p,
-        None,
-        Some(&job.token),
-    );
-
-    let timed = tokio::time::timeout(LIVE_REQUEST_TIMEOUT, request).await;
+    // Last, so it only wins when nothing else explains an item.
+    origins.push(SourceRef::new(AssistOrigin::simple(ORIGIN_TALK, "Conversa"), &said_now));
+    let prompt = user_prompt(&language, &context, &rendered.text, &window, &shown, &sources);
+    let streaming = target.provider == LLMProvider::Ollama;
+    let request_id = NEXT_REQUEST_ID.fetch_add(1, Ordering::SeqCst);
+    let result = if streaming {
+        stream_call(&job, &client, &prompt, request_id, &origins).await
+    } else {
+        plain_call(&job, &client, &prompt).await
+    };
+    // Tells the panel to drop the in-progress items of this call. It is sent
+    // on every exit of the streaming path, after the final update if any.
+    let finish_partial = || {
+        if streaming {
+            let _ = job.app.emit(
+                "live-assist-partial",
+                AssistPartial {
+                    request_id,
+                    items: Vec::new(),
+                    done: true,
+                },
+            );
+        }
+    };
     if job.token.is_cancelled() {
+        finish_partial();
         return;
     }
 
-    let note = match timed {
-        Ok(Ok(completion)) => match parse_assist_json(&completion.content) {
+    let note = match result {
+        Ok(content) => match parse_assist_json(&content) {
             Some(parsed) => {
-                publish(&job, parsed);
+                publish(&job, parsed, &origins);
                 None
             }
             None => {
@@ -426,17 +694,18 @@ async fn run_job<R: Runtime>(job: Job<R>) {
                 Some("A resposta do modelo não estava no formato esperado.".to_string())
             }
         },
-        Ok(Err(error)) if error.to_ascii_lowercase().contains("cancel") => None,
-        Ok(Err(_)) => {
+        Err(CallError::Cancelled) => None,
+        Err(CallError::Failed) => {
             warn!("Live assist model call failed");
             Some("Não foi possível gerar uma sugestão agora.".to_string())
         }
-        Err(_) => {
+        Err(CallError::Timeout) => {
             job.token.cancel();
             warn!("Live assist model call exceeded the live timeout");
             Some("A sugestão demorou demais e foi descartada.".to_string())
         }
     };
+    finish_partial();
 
     let enabled = {
         let Ok(guard) = job.state.lock() else {
@@ -450,15 +719,117 @@ async fn run_job<R: Runtime>(job: Job<R>) {
     emit_status(&job.app, enabled, true, false, note);
 }
 
-fn publish<R: Runtime>(job: &Job<R>, parsed: super::parse::AssistLists) {
+/// One POST, whole answer at the end. Used by every provider except Ollama.
+async fn plain_call<R: Runtime>(job: &Job<R>, client: &Client, prompt: &str) -> Result<String, CallError> {
+    let target = &job.target;
+    let request = generate_summary(
+        client,
+        &target.provider,
+        &target.model,
+        &target.api_key,
+        system_prompt(),
+        prompt,
+        target.ollama_endpoint.as_deref(),
+        target.custom_openai_endpoint.as_deref(),
+        target.max_tokens,
+        target.temperature,
+        target.top_p,
+        None,
+        Some(&job.token),
+    );
+    match tokio::time::timeout(LIVE_REQUEST_TIMEOUT, request).await {
+        Ok(Ok(completion)) => Ok(completion.content),
+        Ok(Err(error)) if error.to_ascii_lowercase().contains("cancel") => Err(CallError::Cancelled),
+        Ok(Err(_)) => Err(CallError::Failed),
+        Err(_) => Err(CallError::Timeout),
+    }
+}
+
+/// Ollama: tokens arrive as they are generated and the items already readable
+/// in the partial JSON go out as `live-assist-partial`.
+async fn stream_call<R: Runtime>(
+    job: &Job<R>,
+    client: &Client,
+    prompt: &str,
+    request_id: u64,
+    origins: &[SourceRef],
+) -> Result<String, CallError> {
+    let target = &job.target;
+    let mut last_emit: Option<Instant> = None;
+    let mut last_items: Vec<PartialItem> = Vec::new();
+    let on_content = |content: &str| {
+        if job.token.is_cancelled() {
+            return;
+        }
+        let now = Instant::now();
+        if last_emit.is_some_and(|at| now.saturating_duration_since(at) < PARTIAL_MIN_INTERVAL) {
+            return;
+        }
+        let mut items = extract_partial_items(content);
+        if let Ok(guard) = job.state.lock() {
+            // Items the final filter would drop as repeats are not previewed.
+            items.retain(|item| !guard.shown.is_repeat(section_for_kind(item.kind), &item.text));
+        }
+        for item in &mut items {
+            // The tag appears once the model has written the item's `origem`.
+            if item.claimed_origin.is_some() {
+                item.origin = resolve_origin(
+                    section_for_kind(item.kind),
+                    &item.text,
+                    item.claimed_origin.as_deref(),
+                    origins,
+                );
+            }
+        }
+        if items == last_items {
+            return;
+        }
+        last_emit = Some(now);
+        last_items = items.clone();
+        let _ = job.app.emit(
+            "live-assist-partial",
+            AssistPartial {
+                request_id,
+                items,
+                done: false,
+            },
+        );
+    };
+    let outcome = stream_ollama_chat(
+        client,
+        target.ollama_endpoint.as_deref(),
+        &target.model,
+        system_prompt(),
+        prompt,
+        &job.token,
+        StreamLimits {
+            first_token: LIVE_FIRST_TOKEN_TIMEOUT,
+            total: LIVE_STREAM_TOTAL_TIMEOUT,
+        },
+        on_content,
+    )
+    .await;
+    match outcome {
+        Ok(outcome) => Ok(outcome.content),
+        Err(StreamError::Cancelled) => Err(CallError::Cancelled),
+        Err(StreamError::FirstTokenTimeout) | Err(StreamError::TotalTimeout) => Err(CallError::Timeout),
+        Err(StreamError::Failed(reason)) => {
+            debug!("Live assist stream failed; reason={reason}");
+            Err(CallError::Failed)
+        }
+    }
+}
+
+fn publish<R: Runtime>(job: &Job<R>, parsed: super::parse::AssistLists, origins: &[SourceRef]) {
     let mut items = Vec::new();
     let mut accepted = Vec::new();
+    let claimed = parsed.origens;
     for (section, texts) in [
         ("perguntas", parsed.perguntas),
         ("respostas", parsed.respostas),
         ("contexto", parsed.contexto),
     ] {
-        for text in texts {
+        for (index, text) in texts.into_iter().enumerate() {
             let repeated = job
                 .state
                 .lock()
@@ -468,10 +839,12 @@ fn publish<R: Runtime>(job: &Job<R>, parsed: super::parse::AssistLists) {
                 continue;
             }
             accepted.push((section.to_string(), text.clone()));
+            let origin = resolve_origin(section, &text, claimed.get(section, index), origins);
             items.push(AssistItem {
                 id: Uuid::new_v4().to_string(),
                 section: section.to_string(),
                 text,
+                origin,
             });
         }
     }

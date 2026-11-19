@@ -1169,12 +1169,18 @@ impl AudioPipeline {
     }
 
     fn segment_channel(&mut self, samples: &[f32], device_type: DeviceType) {
-        let processed = match device_type {
-            DeviceType::Microphone => self.mic_vad.process_audio(samples),
-            DeviceType::System => self.system_vad.process_audio(samples),
+        let (processed, in_speech) = match device_type {
+            DeviceType::Microphone => (self.mic_vad.process_audio(samples), self.mic_vad.is_in_speech()),
+            DeviceType::System => (self.system_vad.process_audio(samples), self.system_vad.is_in_speech()),
         };
         match processed {
-            Ok(segments) => self.send_speech_segments(segments, device_type),
+            Ok(segments) => {
+                // One atomic stamp per window with speech, read by the meeting-end detector.
+                if in_speech || !segments.is_empty() {
+                    super::speech_activity::mark(device_type);
+                }
+                self.send_speech_segments(segments, device_type)
+            }
             Err(error) => self.log_stats.record_vad_failure(VadOperation::Process, &error),
         }
     }

@@ -1,14 +1,25 @@
 'use client';
 
-import { Copy, Pin, PinOff, X, AppWindow, ChevronRight } from 'lucide-react';
+import { Copy, Pin, PinOff, X, AppWindow, ChevronRight, Eraser } from 'lucide-react';
 import { toast } from 'sonner';
 import { LiveAssistItem, LiveAssistSection, useLiveAssist } from '@/contexts/LiveAssistContext';
 import { RecursosBar } from '@/components/Recursos/RecursosBar';
+import { ProvisionalItem } from '@/components/LiveAssist/ProvisionalItem';
+import { OriginTag } from '@/components/LiveAssist/OriginTag';
+import { ContextInUse } from '@/components/LiveAssist/ContextInUse';
+import { itemKey } from '@/lib/liveAssistSync';
+import { shortcutText } from '@/lib/liveAssistShortcut';
 
-const SECTIONS: Array<{ id: LiveAssistSection; title: string; empty: string }> = [
+// Contexto comes first and is highlighted: it is what anchors the other two.
+const SECTIONS: Array<{ id: LiveAssistSection; title: string; empty: string; hint?: string }> = [
+  {
+    id: 'contexto',
+    title: 'Contexto',
+    empty: 'Nada para explicar ainda. Termos, pessoas, números e combinados anteriores aparecem aqui.',
+    hint: 'Com a origem de cada informação',
+  },
   { id: 'perguntas', title: 'Perguntas', empty: 'Nenhuma pergunta sugerida ainda.' },
   { id: 'respostas', title: 'Respostas', empty: 'Nenhuma resposta sugerida ainda.' },
-  { id: 'contexto', title: 'Contexto', empty: 'Nenhum termo para explicar ainda.' },
 ];
 
 function sectionItems(items: LiveAssistItem[], section: LiveAssistSection) {
@@ -35,6 +46,7 @@ function ItemCard({
       className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
       style={{ opacity: item.pinned ? 1 : fade }}
     >
+      {item.origin && <OriginTag origin={item.origin} />}
       <p className="text-sm text-gray-800 leading-relaxed">{item.text}</p>
       <div className="mt-2 flex gap-1">
         <button type="button" className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100" onClick={onCopy}>
@@ -54,6 +66,12 @@ function ItemCard({
 
 export function LiveAssistPanel({ floating = false }: { floating?: boolean }) {
   const { items, pinItem, dismissItem, panelOpen, setPanelOpen, status, openAlwaysOnTop, settings } = useLiveAssist();
+  const { partials, shortcut, clearItems, contextSummary } = useLiveAssist();
+  const shortcutHint = shortcut.status && !shortcut.status.registered
+    ? 'Atalho indisponível. Ajuste nas configurações.'
+    : `Atalho: ${shortcutText(shortcut.accelerator)}`;
+  const itemKeys = new Set(items.map(itemKey));
+  const hasUnpinned = items.some((item) => !item.pinned);
 
   if (!floating && !panelOpen) {
     return null;
@@ -74,7 +92,7 @@ export function LiveAssistPanel({ floating = false }: { floating?: boolean }) {
         <div className="flex items-start justify-between gap-2">
           <div>
             <h2 className="text-base font-semibold text-gray-900">Ajuda ao vivo</h2>
-            <p className="text-xs text-gray-500">Ctrl+Shift+L ou ⌘+Shift+L</p>
+            <p className="text-xs text-gray-500">{shortcutHint}</p>
           </div>
           {!floating && (
             <button type="button" className="rounded p-1 text-gray-500 hover:bg-gray-100" onClick={() => setPanelOpen(false)} title="Recolher">
@@ -93,9 +111,20 @@ export function LiveAssistPanel({ floating = false }: { floating?: boolean }) {
         </div>
         {status.note && <p className="mt-2 text-xs text-amber-700">{status.note}</p>}
         <div className="mt-3"><RecursosBar /></div>
+        {status.recording && settings.enabled && <ContextInUse summary={contextSummary} />}
         {!floating && (
           <button type="button" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline" onClick={openAlwaysOnTop}>
             <AppWindow className="h-3.5 w-3.5" /> Abrir em janela sempre visível
+          </button>
+        )}
+        {hasUnpinned && (
+          <button
+            type="button"
+            className="ml-auto mt-3 flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+            onClick={clearItems}
+            title="Remove as sugestões que não estão fixadas"
+          >
+            <Eraser className="h-3.5 w-3.5" /> Limpar sugestões
           </button>
         )}
       </header>
@@ -105,14 +134,37 @@ export function LiveAssistPanel({ floating = false }: { floating?: boolean }) {
         )}
         {SECTIONS.map((section) => {
           const sectionList = sectionItems(items, section.id);
+          // Still being written by the model; hidden once the same text arrives as a final item.
+          const provisional = partials.filter((partial) => partial.section === section.id && !itemKeys.has(itemKey(partial)));
           let unpinnedIndex = 0;
+          const highlighted = section.id === 'contexto';
           return (
-            <section key={section.id}>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{section.title}</h3>
-              {sectionList.length === 0 ? (
+            <section
+              key={section.id}
+              className={highlighted ? 'rounded-xl border border-primary/30 bg-primary/5 p-3' : undefined}
+            >
+              {highlighted ? (
+                <div className="mb-2 flex items-baseline justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {section.title}
+                    {sectionList.length > 0 && (
+                      <span className="ml-2 rounded-full bg-primary/15 px-1.5 py-0.5 text-[11px] font-medium text-foreground">
+                        {sectionList.length}
+                      </span>
+                    )}
+                  </h3>
+                  <span className="truncate text-[11px] text-muted-foreground">{section.hint}</span>
+                </div>
+              ) : (
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{section.title}</h3>
+              )}
+              {sectionList.length === 0 && provisional.length === 0 ? (
                 <p className="text-sm text-gray-400">{section.empty}</p>
               ) : (
                 <div className="space-y-2">
+                  {provisional.map((partial, index) => (
+                    <ProvisionalItem key={`provisional-${index}`} text={partial.text} origin={partial.origin} />
+                  ))}
                   {sectionList.map((item) => {
                     const fade = item.pinned ? 1 : Math.max(0.4, 1 - unpinnedIndex * 0.18);
                     if (!item.pinned) unpinnedIndex += 1;

@@ -9,6 +9,7 @@ mod commitments;
 mod email;
 mod entities;
 mod lookup;
+pub mod privacy;
 mod scoreboard;
 mod search;
 mod toggles;
@@ -18,7 +19,7 @@ pub use commands::{
     draft_followup, export_action_ics, get_feature_toggles, meeting_scoreboard, prepare_from_calendar,
     prepare_from_ics, recall_meetings, save_feature_toggles, search_meetings,
 };
-pub use toggles::{load, FeatureToggles};
+pub use toggles::{load, load_effective, FeatureToggles};
 
 pub use commitments::detect_commitments;
 pub use entities::unknown_terms;

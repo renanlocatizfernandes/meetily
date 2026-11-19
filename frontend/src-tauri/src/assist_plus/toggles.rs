@@ -20,7 +20,8 @@ pub struct FeatureToggles {
 impl Default for FeatureToggles {
     fn default() -> Self {
         Self {
-            internet_search: true,
+            // Sending terms to the internet is opt-in.
+            internet_search: false,
             auto_tasks: true,
             meeting_memory: true,
             calendar_prep: true,
@@ -67,6 +68,16 @@ pub async fn load(pool: &SqlitePool) -> Result<FeatureToggles, sqlx::Error> {
         translation: row.try_get("translation").unwrap_or_else(|_| "auto".to_string()),
     }
     .normalized())
+}
+
+/// The toggles as the app must apply them: until the one-time privacy choice
+/// is made, the internet lookup stays off whatever the stored value says.
+pub async fn load_effective(pool: &SqlitePool) -> Result<FeatureToggles, sqlx::Error> {
+    let mut toggles = load(pool).await?;
+    if toggles.internet_search && !super::privacy::is_done(pool).await? {
+        toggles.internet_search = false;
+    }
+    Ok(toggles)
 }
 
 fn flag(row: &sqlx::sqlite::SqliteRow, name: &str) -> bool {

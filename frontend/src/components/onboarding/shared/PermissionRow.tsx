@@ -10,17 +10,17 @@ export function PermissionRow({ icon, title, description, status, isPending = fa
   const isChecking = isPending;
 
   const getButtonText = () => {
-    if (isChecking) return 'Checking...';
-    if (isDenied) return 'Open Settings';
-    return 'Enable';
+    if (isChecking) return 'Verificando...';
+    if (isDenied) return 'Abrir ajustes';
+    return 'Ativar';
   };
 
   return (
     <div
       className={cn(
         'flex items-center justify-between rounded-2xl border px-6 py-5',
-        'transition-all duration-200',
-        isAuthorized ? 'border-gray-900 bg-gray-100' : isDenied ? 'border-red-300 bg-red-50' : 'bg-white border-neutral-200'
+        'transition-all duration-150',
+        isAuthorized ? 'border-input bg-muted' : isDenied ? 'border-danger/30 bg-danger-soft' : 'bg-card border-border'
       )}
     >
       {/* Left side: Icon + Info */}
@@ -29,25 +29,25 @@ export function PermissionRow({ icon, title, description, status, isPending = fa
         <div
           className={cn(
             'flex size-10 items-center justify-center rounded-full flex-shrink-0',
-            isAuthorized ? 'bg-gray-200' : isDenied ? 'bg-red-100' : 'bg-neutral-50'
+            isAuthorized ? 'bg-accent' : isDenied ? 'bg-danger-soft' : 'bg-muted'
           )}
         >
-          <div className={cn(isAuthorized ? 'text-gray-900' : isDenied ? 'text-red-500' : 'text-neutral-500')}>{icon}</div>
+          <div className={cn(isAuthorized ? 'text-foreground' : isDenied ? 'text-danger' : 'text-muted-foreground')}>{icon}</div>
         </div>
 
         {/* Title + Description */}
         <div className="min-w-0 flex-1">
-          <div className="font-medium truncate text-neutral-900">{title}</div>
+          <div className="font-medium truncate text-foreground">{title}</div>
           <div className="text-sm text-muted-foreground">
             {isAuthorized ? (
-              <span className="text-green-600 flex items-center gap-1">
+              <span className="text-success flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                Access Granted
+                Acesso concedido
               </span>
             ) : isDenied ? (
-              <span className="text-red-500 flex items-center gap-1">
+              <span className="text-danger flex items-center gap-1">
                 <XCircle className="w-3.5 h-3.5" />
-                Access Denied - Please grant in System Settings
+                Acesso negado. Conceda nos Ajustes do Sistema
               </span>
             ) : (
               <span>{description}</span>
@@ -71,8 +71,8 @@ export function PermissionRow({ icon, title, description, status, isPending = fa
           </Button>
         )}
         {isAuthorized && (
-          <div className="flex size-8 items-center justify-center rounded-full bg-green-100">
-            <CheckCircle2 className="w-4 h-4 text-green-600" />
+          <div className="flex size-8 items-center justify-center rounded-full bg-success-soft">
+            <CheckCircle2 className="w-4 h-4 text-success" />
           </div>
         )}
       </div>

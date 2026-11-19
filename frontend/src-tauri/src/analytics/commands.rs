@@ -1,24 +1,16 @@
 use std::sync::Arc;
 use std::collections::HashMap;
 use tauri::command;
-use crate::analytics::{AnalyticsClient, AnalyticsConfig};
+use crate::analytics::AnalyticsClient;
 
 // Global analytics client
 static ANALYTICS_CLIENT: std::sync::Mutex<Option<Arc<AnalyticsClient>>> = std::sync::Mutex::new(None);
 
 #[command]
 pub async fn init_analytics() -> Result<(), String> {
-    let config = AnalyticsConfig {
-        api_key: "phc_ohznXPkRSJYWmrfez9mYxtXv5U5Nekq3iiUts87dJfcr".to_string(),
-        host: Some("https://us.i.posthog.com".to_string()),
-        enabled: true,
-    };
-    
-    let client = Arc::new(AnalyticsClient::new(config).await);
-    
-    let mut guard = ANALYTICS_CLIENT.lock().unwrap();
-    *guard = Some(client);
-    
+    // Telemetria desligada neste fork: nenhum cliente PostHog é criado, então
+    // todos os comandos `track_*` abaixo viram no-op e nada sai da máquina.
+    // O projeto de telemetria era do Meetily original.
     Ok(())
 }
 

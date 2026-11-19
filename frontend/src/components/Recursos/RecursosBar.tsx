@@ -42,21 +42,21 @@ export function RecursosBar() {
     <div className="relative">
       <button
         type="button"
-        className="rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-800 shadow"
+        className="rounded-full border bg-card px-3 py-1 text-xs font-medium text-foreground shadow-sm hover:bg-accent"
         onClick={() => setOpen((value) => !value)}
       >
         Recursos
       </button>
       {open && (
-        <div className="absolute bottom-10 left-0 z-40 w-[340px] space-y-3 rounded-xl border border-gray-200 bg-white p-3 text-left shadow-lg">
-          <p className="text-xs text-gray-500">Um clique liga ou desliga. A pesquisa manda só o termo para a Wikipédia ou o DuckDuckGo.</p>
+        <div className="absolute bottom-10 left-0 z-40 w-[340px] space-y-3 rounded-xl border bg-popover p-3 text-left text-popover-foreground shadow-lg">
+          <p className="text-xs text-muted-foreground">Um clique liga ou desliga. A pesquisa manda só o termo para a Wikipédia ou o DuckDuckGo.</p>
           <div className="flex flex-wrap gap-1">
             {SWITCHES.map((item) => (
               <button
                 key={item.key}
                 type="button"
                 onClick={() => flip(item.key)}
-                className={`rounded-full px-2 py-1 text-xs ${toggles[item.key] ? 'bg-emerald-100 text-emerald-900' : 'bg-gray-100 text-gray-500'}`}
+                className={`rounded-full px-2 py-1 text-xs ${toggles[item.key] ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}
               >
                 {item.label}
               </button>
@@ -64,13 +64,13 @@ export function RecursosBar() {
             <button
               type="button"
               onClick={() => setToggle({ translation: toggles.translation === 'off' ? 'auto' : 'off' }).catch(() => toast.error('Não foi possível salvar'))}
-              className={`rounded-full px-2 py-1 text-xs ${toggles.translation === 'off' ? 'bg-gray-100 text-gray-500' : 'bg-emerald-100 text-emerald-900'}`}
+              className={`rounded-full px-2 py-1 text-xs ${toggles.translation === 'off' ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-primary'}`}
             >
               Tradução {toggles.translation === 'on' ? 'sempre' : toggles.translation === 'auto' ? 'auto' : 'off'}
             </button>
           </div>
           <div className="flex flex-wrap gap-1">
-            <button type="button" className="rounded bg-gray-100 px-2 py-1 text-xs" onClick={async () => {
+            <button type="button" className="rounded-md bg-muted px-2 py-1 text-xs text-foreground hover:bg-accent" onClick={async () => {
               try {
                 const prepared = await invoke<{ context: string }>('prepare_from_calendar');
                 await saveSettings({ ...settings, meetingContext: prepared.context });
@@ -79,7 +79,7 @@ export function RecursosBar() {
                 toast.error(String(error));
               }
             }}>Pela agenda</button>
-            <label className="rounded bg-gray-100 px-2 py-1 text-xs">
+            <label className="rounded-md bg-muted px-2 py-1 text-xs text-foreground hover:bg-accent">
               .ics
               <input type="file" accept=".ics,text/calendar" className="hidden" onChange={async (event) => {
                 const file = event.target.files?.[0];
@@ -93,7 +93,7 @@ export function RecursosBar() {
                 }
               }} />
             </label>
-            <button type="button" className="rounded bg-gray-100 px-2 py-1 text-xs" onClick={async () => {
+            <button type="button" className="rounded-md bg-muted px-2 py-1 text-xs text-foreground hover:bg-accent" onClick={async () => {
               try {
                 const hits = await invoke<Array<{ title: string; excerpt: string }>>('recall_meetings', { hint: meetingTitle || settings.meetingContext });
                 setMemory(hits.slice(0, 2).map((hit) => `${hit.title}: ${hit.excerpt}`).join('\n') || 'Nada parecido nas reuniões salvas.');
@@ -101,7 +101,7 @@ export function RecursosBar() {
                 toast.error(String(error));
               }
             }}>Última vez</button>
-            <button type="button" className="rounded bg-gray-100 px-2 py-1 text-xs" onClick={async () => {
+            <button type="button" className="rounded-md bg-muted px-2 py-1 text-xs text-foreground hover:bg-accent" onClick={async () => {
               try {
                 const board = await invoke<{ talk: Array<{ speaker: string; seconds: number }>; unanswered: string[]; coverage: number }>('meeting_scoreboard', {
                   turns: transcripts.map((item) => ({
@@ -117,7 +117,7 @@ export function RecursosBar() {
                 toast.error(String(error));
               }
             }}>Placar</button>
-            <button type="button" className="rounded bg-gray-100 px-2 py-1 text-xs" onClick={async () => {
+            <button type="button" className="rounded-md bg-muted px-2 py-1 text-xs text-foreground hover:bg-accent" onClick={async () => {
               try {
                 const path = await invoke<string>('export_action_ics', { text: transcriptText });
                 toast.success(`Tarefas em ${path}`);
@@ -125,7 +125,7 @@ export function RecursosBar() {
                 toast.error(String(error));
               }
             }}>Tarefas .ics</button>
-            <button type="button" className="rounded bg-gray-100 px-2 py-1 text-xs" onClick={async () => {
+            <button type="button" className="rounded-md bg-muted px-2 py-1 text-xs text-foreground hover:bg-accent" onClick={async () => {
               try {
                 const draft = await invoke<{ body: string; mailto: string }>('draft_followup', { title: meetingTitle, summary: transcriptText.slice(0, 4000) });
                 await navigator.clipboard.writeText(draft.body);
@@ -146,11 +146,11 @@ export function RecursosBar() {
               toast.error(String(error));
             }
           }}>
-            <input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="O que ficou combinado sobre preço?" className="min-w-0 flex-1 rounded border border-gray-200 px-2 py-1 text-xs" />
-            <button type="submit" className="rounded bg-gray-900 px-2 py-1 text-xs text-white">Buscar</button>
+            <input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="O que ficou combinado sobre preço?" className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 text-xs" />
+            <button type="submit" className="rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground">Buscar</button>
           </form>
-          {memory && <p className="whitespace-pre-wrap text-xs text-gray-700">{memory}</p>}
-          {result && <p className="whitespace-pre-wrap text-xs text-gray-700">{result}</p>}
+          {memory && <p className="whitespace-pre-wrap text-xs text-muted-foreground">{memory}</p>}
+          {result && <p className="whitespace-pre-wrap text-xs text-muted-foreground">{result}</p>}
         </div>
       )}
     </div>
@@ -160,10 +160,10 @@ export function RecursosBar() {
 export function RecursosSettings() {
   const { toggles, setToggle } = useFeatures();
   return (
-    <div className="mx-auto mt-8 max-w-2xl space-y-4 rounded-xl border border-gray-200 bg-white p-6">
+    <div className="mt-6 space-y-4 rounded-xl border bg-card p-5">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">Recursos</h2>
-        <p className="mt-1 text-sm text-gray-500">
+        <h2 className="text-lg font-semibold text-foreground">Recursos</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           Tudo começa ligado, menos a tradução, que fica automática: só entra quando a fala parece inglês ou espanhol. A pesquisa na internet manda apenas o termo para a Wikipédia e o DuckDuckGo, sem chave. O resto fica nesta máquina, salvo o provedor de resumo que você já configurou.
         </p>
       </div>
@@ -176,7 +176,7 @@ export function RecursosSettings() {
       <label className="flex items-center justify-between gap-4 text-sm">
         <span>Tradução ao vivo</span>
         <select
-          className="rounded border border-gray-300 px-2 py-1"
+          className="rounded border border-input bg-background px-2 py-1"
           value={toggles.translation}
           onChange={(event) => setToggle({ translation: event.target.value as FeatureToggles['translation'] }).catch(() => toast.error('Não foi possível salvar'))}
         >

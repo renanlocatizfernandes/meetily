@@ -237,6 +237,7 @@ pub fn start_transcription_task<R: Runtime>(
                 if let Some(state) = app_clone.try_state::<crate::state::AppState>() {
                     crate::speakers::load_voice_profiles(state.db_manager.pool()).await;
                 }
+                crate::speakers::prepare_voice_model(&app_clone).await;
                 let mut speakers = crate::speakers::SpeakerBook::default();
 
                 while let Some(chunk) = {
@@ -257,17 +258,11 @@ pub fn start_transcription_task<R: Runtime>(
                         super::super::recording_state::DeviceType::Microphone => crate::speakers::Channel::Mic,
                         super::super::recording_state::DeviceType::System => crate::speakers::Channel::System,
                     };
-                    let mut assignment = speakers.assign(channel, &chunk.data, chunk.sample_rate);
+                    // None unless the optional voice model is installed and on; runs off this thread.
+                    let neural = crate::speakers::neural_embedding(&chunk.data, chunk.sample_rate).await;
+                    let mut assignment = speakers.assign_with(channel, &chunk.data, chunk.sample_rate, neural);
                     if let Some(item) = assignment.as_mut() {
-                        if let Some(embedding) = item.embedding.clone() {
-                            crate::speakers::remember_embedding(&item.key, embedding.clone());
-                            if item.label.starts_with("Pessoa") {
-                                if let Some(name) = crate::speakers::suggest_name(&embedding) {
-                                    crate::speakers::rename(item.key.clone(), name.clone());
-                                    item.label = name;
-                                }
-                            }
-                        }
+                        crate::speakers::apply_profiles(item);
                     }
                     let processing_started = Instant::now();
 

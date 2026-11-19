@@ -32,8 +32,8 @@ export function useTemplates() {
   // Handle template selection
   const handleTemplateSelection = useCallback((templateId: string, templateName: string) => {
     setSelectedTemplate(templateId);
-    toast.success('Template selected', {
-      description: `Using "${templateName}" template for summary generation`,
+    toast.success('Modelo de resumo selecionado', {
+      description: `O resumo será gerado com o modelo "${templateName}"`,
     });
     Analytics.trackFeatureUsed('template_selected');
   }, []);

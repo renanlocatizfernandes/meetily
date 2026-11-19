@@ -1012,6 +1012,13 @@ pub async fn api_save_transcript<R: Runtime>(
                 "Successfully saved transcript and created meeting with id: {}",
                 meeting_id
             );
+            // Title and classification are worked out in the background (no-op
+            // when "organizar automaticamente" is off).
+            crate::organize::schedule_auto_organize(
+                &_app,
+                &meeting_id,
+                crate::organize::AutoTrigger::TranscriptSaved,
+            );
             Ok(serde_json::json!({
                 "status": "success",
                 "message": "Transcript saved successfully",
