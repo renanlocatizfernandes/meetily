@@ -66,9 +66,9 @@ Release builds normally log `app_lib` at Info level under `logs/`. To enable Deb
 
 | Platform | App data directory |
 | --- | --- |
-| Linux | `${XDG_DATA_HOME:-$HOME/.local/share}/com.meetily.ai` |
-| macOS | `~/Library/Application Support/com.meetily.ai` |
-| Windows | `%APPDATA%\com.meetily.ai` |
+| Linux | `${XDG_DATA_HOME:-$HOME/.local/share}/com.techfernandes.meetilylive` |
+| macOS | `~/Library/Application Support/com.techfernandes.meetilylive` |
+| Windows | `%APPDATA%\com.techfernandes.meetilylive` |
 
 Append `logs-dev/` for development builds or `logs/` for release builds. If the persistent log path is unavailable or unwritable, logging may fall back to a stream, so log files are not guaranteed.
 
