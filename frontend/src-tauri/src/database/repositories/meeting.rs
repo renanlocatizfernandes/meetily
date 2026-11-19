@@ -1,4 +1,5 @@
 use crate::api::{MeetingDetails, MeetingTranscript};
+use crate::database::repositories::transcript::TranscriptsRepository;
 use crate::database::models::{MeetingModel, Transcript};
 use chrono::Utc;
 use sqlx::{Connection, Error as SqlxError, SqliteConnection, SqlitePool};
@@ -83,15 +84,23 @@ impl MeetingsRepository {
             transaction.commit().await?;
 
             // Convert Transcript to MeetingTranscript
+            let aliases = TranscriptsRepository::speaker_aliases(pool, meeting_id)
+                .await
+                .unwrap_or_default();
             let meeting_transcripts = transcripts
                 .into_iter()
-                .map(|t| MeetingTranscript {
-                    id: t.id,
-                    text: t.transcript,
-                    timestamp: t.timestamp,
-                    audio_start_time: t.audio_start_time,
-                    audio_end_time: t.audio_end_time,
-                    duration: t.duration,
+                .map(|t| {
+                    let speaker_key = t.speaker_key.clone();
+                    MeetingTranscript {
+                        id: t.id,
+                        text: t.transcript,
+                        timestamp: t.timestamp,
+                        audio_start_time: t.audio_start_time,
+                        audio_end_time: t.audio_end_time,
+                        duration: t.duration,
+                        speaker: TranscriptsRepository::display_speaker(&aliases, t.speaker, t.speaker_key),
+                        speaker_key,
+                    }
                 })
                 .collect::<Vec<_>>();
 

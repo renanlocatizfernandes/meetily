@@ -7,6 +7,8 @@ import { useRecordingState } from './RecordingStateContext';
 import { transcriptService } from '@/services/transcriptService';
 import { recordingService } from '@/services/recordingService';
 import { indexedDBService } from '@/services/indexedDBService';
+import { invoke } from '@tauri-apps/api/core';
+import { speakerDisplay } from '@/lib/speakerLabel';
 
 interface TranscriptContextType {
   transcripts: Transcript[];
@@ -20,6 +22,7 @@ interface TranscriptContextType {
   clearTranscripts: () => void;
   currentMeetingId: string | null;
   markMeetingAsSaved: () => Promise<void>;
+  renameSpeaker: (speakerKey: string, displayName: string) => Promise<void>;
 }
 
 const TranscriptContext = createContext<TranscriptContextType | undefined>(undefined);
@@ -383,6 +386,8 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
             audio_start_time: segment.audio_start_time,
             audio_end_time: segment.audio_end_time,
             duration: segment.duration,
+            speaker: segment.speaker,
+            speaker_key: segment.speaker_key,
           }));
 
           setTranscripts(formattedTranscripts);
@@ -424,7 +429,8 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
       audio_start_time: update.audio_start_time,
       audio_end_time: update.audio_end_time,
       duration: update.duration,
-      speaker: update.source === 'mic' || update.source === 'system' ? update.source : undefined,
+      speaker: update.speaker_label || (update.source === 'mic' || update.source === 'system' ? update.source : undefined),
+      speaker_key: update.speaker_key,
     };
 
     setTranscripts(prev => {
@@ -465,10 +471,9 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
       return `[${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}]`;
     };
 
-    const speakerLabel = (speaker?: string) => speaker === 'mic' ? 'Você' : speaker === 'system' ? 'Participantes' : '';
     const fullTranscript = transcripts
       .map(t => {
-        const label = speakerLabel(t.speaker);
+        const label = speakerDisplay(t.speaker) || '';
         return `${formatTime(t.audio_start_time)}${label ? ` ${label}:` : ''} ${t.text}`;
       })
       .join('\n');
@@ -514,6 +519,15 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     }
   }, [currentMeetingId]);
 
+  const renameSpeaker = useCallback(async (speakerKey: string, displayName: string) => {
+    const name = displayName.trim();
+    if (!speakerKey || !name) return;
+    setTranscripts(prev => prev.map(transcript => (
+      transcript.speaker_key === speakerKey ? { ...transcript, speaker: name } : transcript
+    )));
+    await invoke('rename_speaker', { meetingId: null, speakerKey, displayName: name });
+  }, []);
+
   const value: TranscriptContextType = {
     transcripts,
     transcriptsRef,
@@ -526,6 +540,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     clearTranscripts,
     currentMeetingId,
     markMeetingAsSaved,
+    renameSpeaker,
   };
 
   return (

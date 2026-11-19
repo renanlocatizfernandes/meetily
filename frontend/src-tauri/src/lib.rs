@@ -39,6 +39,7 @@ pub(crate) use perf_trace;
 pub mod analytics;
 pub mod auto_record;
 pub mod live_assist;
+pub mod speakers;
 pub mod api;
 pub mod audio;
 pub mod config;
@@ -923,6 +924,7 @@ pub fn run() {
             auto_record::get_auto_record_settings,
             auto_record::save_auto_record_settings,
             auto_record::dismiss_auto_recording,
+            speakers::rename_speaker,
             audio::recording_preferences::get_audio_backend_info,
             // Language preference commands
             set_language_preference,

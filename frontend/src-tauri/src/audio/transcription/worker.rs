@@ -181,6 +181,10 @@ pub struct TranscriptUpdate {
     pub audio_start_time: f64, // Seconds from recording start (e.g., 125.3)
     pub audio_end_time: f64,   // Seconds from recording start (e.g., 128.6)
     pub duration: f64,          // Segment duration in seconds (e.g., 3.3)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker_label: Option<String>,
 }
 
 // NOTE: get_transcript_history and get_recording_meeting_name functions
@@ -229,6 +233,8 @@ pub fn start_transcription_task<R: Runtime>(
             worker_handles.push(tokio::spawn(async move {
                 let mut stats = WorkerLogStats::default();
                 let mut last_summary = Instant::now();
+                crate::speakers::clear_aliases();
+                let mut speakers = crate::speakers::SpeakerBook::default();
 
                 while let Some(chunk) = {
                     let mut receiver = work_receiver_clone.lock().await;
@@ -244,6 +250,11 @@ pub fn start_transcription_task<R: Runtime>(
                     let chunk_timestamp = chunk.timestamp;
                     let chunk_duration = chunk.data.len() as f64 / chunk.sample_rate as f64;
                     let transcript_source = transcript_source_label(&chunk.device_type).to_string();
+                    let channel = match chunk.device_type {
+                        super::super::recording_state::DeviceType::Microphone => crate::speakers::Channel::Mic,
+                        super::super::recording_state::DeviceType::System => crate::speakers::Channel::System,
+                    };
+                    let assignment = speakers.assign(channel, &chunk.data, chunk.sample_rate);
                     let processing_started = Instant::now();
 
                     if !engine_clone.is_model_loaded().await {
@@ -290,6 +301,8 @@ pub fn start_transcription_task<R: Runtime>(
                                         audio_start_time: chunk_timestamp,
                                         audio_end_time: chunk_timestamp + chunk_duration,
                                         duration: chunk_duration,
+                                        speaker_key: assignment.as_ref().map(|item| item.key.clone()),
+                                        speaker_label: assignment.as_ref().map(|item| item.label.clone()),
                                     };
 
                                     if app_clone.emit("transcript-update", &update).is_ok() {

@@ -202,8 +202,14 @@ async fn handle_transcript<R: Runtime>(
     if !refresh_settings(&pool, &state).await {
         return;
     }
-    let source = if update.source == "system" { "system" } else { "mic" };
-    let kind = classify_segment(source, &update.text);
+    let channel = if update.source == "system" { "system" } else { "mic" };
+    let source = update
+        .speaker_label
+        .as_deref()
+        .map(str::trim)
+        .filter(|label| !label.is_empty())
+        .unwrap_or(channel);
+    let kind = classify_segment(channel, &update.text);
     let hint = if kind.is_some() {
         Some(load_hint(&pool).await)
     } else {

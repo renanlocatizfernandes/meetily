@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { RecordingStatusBar } from "./RecordingStatusBar";
 import { motion, AnimatePresence } from "framer-motion";
 import { TranscriptSegmentData } from "@/types";
+import { speakerDisplay } from "@/lib/speakerLabel";
 
 export interface VirtualizedTranscriptViewProps {
     /** Transcript segments to display */
@@ -34,6 +35,7 @@ export interface VirtualizedTranscriptViewProps {
     totalCount?: number;
     loadedCount?: number;
     onLoadMore?: () => void;
+    onRenameSpeaker?: (speakerKey: string, displayName: string) => void;
 }
 
 // Threshold for enabling virtualization (below this, use simple rendering)
@@ -72,6 +74,8 @@ const TranscriptSegment = memo(function TranscriptSegment({
     isStreaming,
     showConfidence,
     speaker,
+    speakerKey,
+    onRenameSpeaker,
 }: {
     id: string;
     timestamp: number;
@@ -80,8 +84,10 @@ const TranscriptSegment = memo(function TranscriptSegment({
     isStreaming: boolean;
     showConfidence: boolean;
     speaker?: string;
+    speakerKey?: string;
+    onRenameSpeaker?: (speakerKey: string, displayName: string) => void;
 }) {
-    const speakerLabel = speaker === 'mic' ? 'Você' : speaker === 'system' ? 'Participantes' : null;
+    const speakerLabel = speakerDisplay(speaker);
     const displayText = cleanStopWords(text) || (text.trim() === '' ? '[Silence]' : text);
 
     return (
@@ -101,7 +107,21 @@ const TranscriptSegment = memo(function TranscriptSegment({
                 </Tooltip>
                 <div className="flex-1">
                     {speakerLabel && (
-                        <p className="text-[11px] font-medium text-gray-500 mb-0.5">{speakerLabel}</p>
+                        speakerKey && onRenameSpeaker ? (
+                            <button
+                                type="button"
+                                className="mb-0.5 text-[11px] font-medium text-gray-500 underline decoration-dotted"
+                                title="Renomear esta pessoa"
+                                onClick={() => {
+                                    const next = window.prompt('Nome desta pessoa', speakerLabel);
+                                    if (next && next.trim()) onRenameSpeaker(speakerKey, next.trim());
+                                }}
+                            >
+                                {speakerLabel}
+                            </button>
+                        ) : (
+                            <p className="text-[11px] font-medium text-gray-500 mb-0.5">{speakerLabel}</p>
+                        )
                     )}
                     {isStreaming ? (
                         <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
@@ -130,6 +150,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     totalCount = 0,
     loadedCount = 0,
     onLoadMore,
+    onRenameSpeaker,
 }) => {
     // Create scroll ref first - shared between virtualizer and auto-scroll hook
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -303,6 +324,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
                                         speaker={segment.speaker}
+                                        speakerKey={segment.speakerKey}
+                                        onRenameSpeaker={onRenameSpeaker}
                                     />
                                 </div>
                             );
@@ -360,6 +383,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
                                         speaker={segment.speaker}
+                                        speakerKey={segment.speakerKey}
+                                        onRenameSpeaker={onRenameSpeaker}
                                     />
                                 </motion.div>
                             );

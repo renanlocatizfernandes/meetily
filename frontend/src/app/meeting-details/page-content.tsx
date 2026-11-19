@@ -218,6 +218,14 @@ export default function PageContent({
               meetingId={meeting.id}
               meetingFolderPath={meeting.folder_path}
               onRefetchTranscripts={onRefetchTranscripts}
+              onRenameSpeaker={async (speakerKey, displayName) => {
+                await invoke('rename_speaker', {
+                  meetingId: meeting.id,
+                  speakerKey,
+                  displayName,
+                });
+                await onRefetchTranscripts?.();
+              }}
             />
           }
           summary={

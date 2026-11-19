@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use crate::api::{TranscriptSearchResult, TranscriptSegment};
 use chrono::Utc;
-use sqlx::{Connection, Error as SqlxError, SqlitePool};
+use sqlx::{Connection, Error as SqlxError, Row, SqlitePool};
 use log::{error, info};
 use uuid::Uuid;
 
@@ -47,8 +49,8 @@ impl TranscriptsRepository {
         for segment in transcripts {
             let transcript_id = format!("transcript-{}", Uuid::new_v4());
             let result = sqlx::query(
-                "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration, speaker)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration, speaker, speaker_key)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )
             .bind(&transcript_id)
             .bind(&meeting_id)
@@ -58,6 +60,7 @@ impl TranscriptsRepository {
             .bind(segment.audio_end_time)
             .bind(segment.duration)
             .bind(segment.speaker.as_deref())
+            .bind(segment.speaker_key.as_deref())
             .execute(&mut *transaction)
             .await;
 
@@ -65,6 +68,26 @@ impl TranscriptsRepository {
                 error!("Failed to save transcript segment for meeting {}", meeting_id);
                 transaction.rollback().await?;
                 return Err(e);
+            }
+            if let (Some(key), Some(name)) = (segment.speaker_key.as_deref(), segment.speaker.as_deref()) {
+                let key = key.trim();
+                let name = name.trim();
+                if !key.is_empty() && !name.is_empty() {
+                    let alias = sqlx::query(
+                        "INSERT INTO speaker_aliases (meeting_id, speaker_key, display_name) VALUES (?, ?, ?)
+                         ON CONFLICT(meeting_id, speaker_key) DO UPDATE SET display_name = excluded.display_name",
+                    )
+                    .bind(&meeting_id)
+                    .bind(key)
+                    .bind(name)
+                    .execute(&mut *transaction)
+                    .await;
+                    if let Err(e) = alias {
+                        error!("Failed to save speaker name for meeting {}", meeting_id);
+                        transaction.rollback().await?;
+                        return Err(e);
+                    }
+                }
             }
         }
 
@@ -78,6 +101,36 @@ impl TranscriptsRepository {
         transaction.commit().await?;
 
         Ok(meeting_id)
+    }
+
+    pub async fn speaker_aliases(
+        pool: &SqlitePool,
+        meeting_id: &str,
+    ) -> Result<HashMap<String, String>, SqlxError> {
+        let rows = sqlx::query(
+            "SELECT speaker_key, display_name FROM speaker_aliases WHERE meeting_id = ?",
+        )
+        .bind(meeting_id)
+        .fetch_all(pool)
+        .await?;
+        let mut aliases = HashMap::new();
+        for row in rows {
+            let key: String = row.try_get("speaker_key")?;
+            let name: String = row.try_get("display_name")?;
+            aliases.insert(key, name);
+        }
+        Ok(aliases)
+    }
+
+    pub fn display_speaker(
+        aliases: &HashMap<String, String>,
+        speaker: Option<String>,
+        speaker_key: Option<String>,
+    ) -> Option<String> {
+        speaker_key
+            .as_ref()
+            .and_then(|key| aliases.get(key).cloned())
+            .or(speaker)
     }
 
     /// Searches for a query string within the transcripts.

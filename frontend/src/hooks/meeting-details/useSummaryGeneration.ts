@@ -10,6 +10,7 @@ import { ModelConfig } from '@/components/ModelSettingsModal';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { invoke as invokeTauri } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
+import { speakerDisplay } from '@/lib/speakerLabel';
 import Analytics from '@/lib/analytics';
 
 import {
@@ -444,7 +445,10 @@ export function useSummaryGeneration({
 
     return {
       transcriptText: allTranscripts
-        .map((transcript) => `${formatTime(transcript.audio_start_time, transcript.timestamp)} ${transcript.text}`)
+        .map((transcript) => {
+          const label = speakerDisplay(transcript.speaker);
+          return `${formatTime(transcript.audio_start_time, transcript.timestamp)}${label ? ` ${label}:` : ''} ${transcript.text}`;
+        })
         .join('\n'),
       transcriptTexts: allTranscripts.map((transcript) => transcript.text),
     };

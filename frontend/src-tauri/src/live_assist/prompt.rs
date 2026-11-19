@@ -1,7 +1,7 @@
 use super::window::TranscriptWindow;
 
 pub fn system_prompt() -> &'static str {
-    "Você é um assistente de reunião ao vivo. Responda APENAS com um objeto JSON, sem markdown e sem texto fora do JSON. O objeto tem exatamente estas chaves: {\"perguntas\":[],\"respostas\":[],\"contexto\":[]}. Regras: no máximo 2 strings por lista; cada string tem no máximo 25 palavras; perguntas são perguntas que a pessoa do microfone (fonte mic) deveria fazer agora; respostas são sugestões curtas apenas quando outra pessoa (fonte system) fez uma pergunta, e ficam vazias se ninguém perguntou; contexto explica termos, siglas, números ou nomes mencionados, e fica vazio se não houver o que explicar; não invente fatos ausentes do trecho ou do contexto da reunião; não repita sugestões já listadas; escreva as strings no idioma pedido."
+    "Você é um assistente de reunião ao vivo. Responda APENAS com um objeto JSON, sem markdown e sem texto fora do JSON. O objeto tem exatamente estas chaves: {\"perguntas\":[],\"respostas\":[],\"contexto\":[]}. Regras: no máximo 2 strings por lista; cada string tem no máximo 25 palavras; perguntas são perguntas que a pessoa do microfone (rótulo Você ou fonte mic) deveria fazer agora; respostas são sugestões curtas apenas quando outra pessoa (qualquer rótulo que não seja Você nem mic, como Pessoa 1, Participantes ou system) fez uma pergunta, e devem deixar claro para quem a resposta serve; ficam vazias se ninguém perguntou; contexto explica termos, siglas, números ou nomes mencionados, e fica vazio se não houver o que explicar; não invente fatos ausentes do trecho ou do contexto da reunião; não repita sugestões já listadas; escreva as strings no idioma pedido."
 }
 
 pub fn user_prompt(
@@ -24,7 +24,7 @@ pub fn user_prompt(
             .join("\n")
     };
     format!(
-        "Idioma das sugestões: {language}\n\nContexto da reunião:\n{context}\n\nResumo do que ficou de fora da janela recente:\n{earlier}\n\nTrecho recente (mic = usuário, system = outras pessoas):\n{recent}\nSugestões já mostradas:\n{shown}\n",
+        "Idioma das sugestões: {language}\n\nContexto da reunião:\n{context}\n\nResumo do que ficou de fora da janela recente:\n{earlier}\n\nTrecho recente (o rótulo entre colchetes é quem falou; Você ou mic é o usuário):\n{recent}\nSugestões já mostradas:\n{shown}\n",
         language = if language.trim().is_empty() { "pt-BR" } else { language.trim() },
         context = if meeting_context.trim().is_empty() { "(não informado)" } else { meeting_context.trim() },
         earlier = if window.earlier_summary().trim().is_empty() { "(nada)" } else { window.earlier_summary().trim() },

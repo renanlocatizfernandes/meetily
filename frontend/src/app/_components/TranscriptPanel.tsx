@@ -31,7 +31,7 @@ export function TranscriptPanel({
   showModal
 }: TranscriptPanelProps) {
   // Contexts
-  const { transcripts, transcriptContainerRef, copyTranscript } = useTranscripts();
+  const { transcripts, transcriptContainerRef, copyTranscript, renameSpeaker } = useTranscripts();
   const { transcriptModelConfig } = useConfig();
   const { isRecording, isPaused } = useRecordingState();
   const { checkPermissions, isChecking, hasSystemAudio, hasMicrophone } = usePermissionCheck();
@@ -46,6 +46,7 @@ export function TranscriptPanel({
       text: t.text,
       confidence: t.confidence,
       speaker: t.speaker,
+      speakerKey: t.speaker_key,
     })),
     [transcripts]
   );
@@ -114,6 +115,7 @@ export function TranscriptPanel({
               isStopping={isStopping}
               enableStreaming={isRecording}
               showConfidence={true}
+              onRenameSpeaker={renameSpeaker}
             />
           </div>
         </div>
