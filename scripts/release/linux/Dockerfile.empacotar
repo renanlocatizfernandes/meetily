@@ -35,11 +35,16 @@ ENV PATH=/opt/rust/cargo/bin:$PATH
 COPY extrair-appimage.sh /usr/local/bin/extrair-appimage
 COPY ldd-emulado.sh /usr/local/bin/ldd
 COPY appimage-sem-runtime.sh linuxdeploy-sem-runtime.c /opt/appimage/
+# linuxdeploy e o plugin não têm release versionado: os hashes abaixo fixam os
+# arquivos como estavam em 19/11/2026. Se o download mudar, o build para aqui;
+# confira a origem antes de atualizar o hash.
 RUN cd /opt/appimage \
  && curl -fsSL --retry 3 -o linuxdeploy.AppImage https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy/linuxdeploy-x86_64.AppImage \
  && curl -fsSL --retry 3 -o plugin.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage \
  && curl -fsSL --retry 3 -o appimagetool.AppImage https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage \
  && curl -fsSL --retry 3 -o runtime-x86_64 https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64 \
+ && echo "e762bea85c8eb0d4b3508d46e5c1f037f717d0f9303ae3b4aafc8b04991fa1ef  linuxdeploy.AppImage" | sha256sum -c - \
+ && echo "49d6a17160675a6bd1781699aae6bdf7692d98552e02a3671d2183d10547842e  plugin.AppImage" | sha256sum -c - \
  && echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool.AppImage" | sha256sum -c - \
  && echo "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  runtime-x86_64" | sha256sum -c - \
  && extrair-appimage linuxdeploy.AppImage linuxdeploy \
