@@ -29,6 +29,15 @@ fn should_emit_transcript(text: &str) -> bool {
     !text.trim().is_empty()
 }
 
+/// Live transcript source. Microphone is the local user; system audio is everyone else.
+pub fn transcript_source_label(device_type: &crate::audio::recording_state::DeviceType) -> &'static str {
+    use crate::audio::recording_state::DeviceType;
+    match device_type {
+        DeviceType::Microphone => "mic",
+        DeviceType::System => "system",
+    }
+}
+
 fn should_log_transcript_snippet(accepted_count: u64) -> bool {
     accepted_count <= 5 || accepted_count % 25 == 0
 }
@@ -234,6 +243,7 @@ pub fn start_transcription_task<R: Runtime>(
 
                     let chunk_timestamp = chunk.timestamp;
                     let chunk_duration = chunk.data.len() as f64 / chunk.sample_rate as f64;
+                    let transcript_source = transcript_source_label(&chunk.device_type).to_string();
                     let processing_started = Instant::now();
 
                     if !engine_clone.is_model_loaded().await {
@@ -272,7 +282,7 @@ pub fn start_transcription_task<R: Runtime>(
                                     let update = TranscriptUpdate {
                                         text: transcript,
                                         timestamp: format_current_timestamp(),
-                                        source: "Audio".to_string(),
+                                        source: transcript_source,
                                         sequence_id,
                                         chunk_start_time: chunk_timestamp,
                                         is_partial,
@@ -525,6 +535,13 @@ fn format_recording_time(seconds: f64) -> String {
         fn drops_empty_and_whitespace_only() {
             assert!(!should_emit_transcript(""));
             assert!(!should_emit_transcript("   "));
+        }
+
+        #[test]
+        fn transcript_source_follows_the_capture_channel() {
+            use crate::audio::recording_state::DeviceType;
+            assert_eq!(transcript_source_label(&DeviceType::Microphone), "mic");
+            assert_eq!(transcript_source_label(&DeviceType::System), "system");
         }
 
         #[test]
