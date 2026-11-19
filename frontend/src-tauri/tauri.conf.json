@@ -1,6 +1,6 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-    "productName": "Meetily Live",
+    "productName": "Meetily Live Plus",
     "version": "0.5.0",
     "identifier": "com.techfernandes.meetilylive",
     "build": {
@@ -12,13 +12,12 @@
     "app": {
         "windows": [
             {
-                "title": "Meetily Live",
+                "title": "Meetily Live Plus",
                 "width": 1100,
                 "height": 700,
                 "preventOverflow": true,
                 "resizable": true,
                 "fullscreen": false,
-                "theme": "Light",
                 "decorations": true
             }
         ],
@@ -65,7 +64,6 @@
                         "store:default",
                         "notification:default",
                         "notification:allow-is-permission-granted",
-                        "updater:default",
                         "process:default",
                         {
                             "identifier": "fs:scope",
@@ -125,14 +123,6 @@
         },
         "windows": {
             "signCommand": "powershell -ExecutionPolicy Bypass -File scripts/sign-windows.ps1 -FilePath %1"
-        }
-    },
-    "plugins": {
-        "updater": {
-            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVDQTYzMUQ3ODc5N0M4MkEKUldRcXlKZUgxekdtN09DRkVWSHNpZlJseEVOUmpNd1dDSTNaLzZ3MXJGTnY3WW1pdnlOYjBpbkIK",
-            "endpoints": [
-                "https://github.com/Zackriya-Solutions/meeting-minutes/releases/latest/download/latest.json"
-            ]
         }
     }
 }
