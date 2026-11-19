@@ -99,6 +99,9 @@ echo "$(clang-cl --version | head -1); makensis $(LC_ALL=en_US.UTF-8 makensis -V
 export CARGO_TARGET_DIR="$RAIZ/target"
 export LIBCLANG_PATH="$LIBCLANG_DIR"
 # Não especializar o código para a CPU da máquina de build (igual ao workflow).
+# CRT dinâmico, como no build oficial: o app usa o Visual C++ Redistributable
+# (MSVCP140.dll/VCRUNTIME140.dll), presente na maioria dos PCs. O CRT estático
+# não fecha o link com o SDK do xwin.
 export RUSTFLAGS="-C target-cpu=x86-64-v2"
 case "${MEETILY_WIN_SIMD:-avx2}" in
   avx2)  export CMAKE_PROJECT_INCLUDE="$RAIZ/scripts/release/windows-portable-avx2.cmake" ;;

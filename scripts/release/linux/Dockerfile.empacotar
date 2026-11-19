@@ -1,0 +1,53 @@
+# Imagem de empacotamento: Ubuntu 22.04 amd64 (emulado no Mac). Só roda o
+# `tauri bundle` (deb + AppImage) sobre os binários já compilados; o
+# linuxdeploy precisa enxergar as bibliotecas x86_64 de verdade para copiá-las
+# para dentro do AppImage. Nada é compilado aqui.
+FROM --platform=linux/amd64 ubuntu:22.04
+
+ARG RUST_VERSION=1.99.1
+ARG NODE_VERSION=22.21.1
+ARG TAURI_CLI_VERSION=2.11.1
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ca-certificates curl wget file xz-utils python3 squashfs-tools gcc libc6-dev dpkg-dev patchelf pkg-config xdg-utils desktop-file-utils \
+      libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev libasound2-dev libopenblas-dev \
+      libx11-dev libxtst-dev libxrandr-dev libpulse-dev libssl-dev libvulkan-dev libgomp1 \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL --retry 3 "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
+      | tar -xJ -C /usr/local --strip-components=1 \
+ && npm install -g "@tauri-apps/cli@${TAURI_CLI_VERSION}" \
+ && tauri --version
+
+# O `tauri bundle` chama `cargo metadata` para achar o diretório target.
+ENV RUSTUP_HOME=/opt/rust/rustup
+RUN curl -fsSL --retry 3 https://sh.rustup.rs \
+      | CARGO_HOME=/opt/rust/cargo sh -s -- -y --profile minimal --default-toolchain "${RUST_VERSION}" --no-modify-path
+ENV PATH=/opt/rust/cargo/bin:$PATH
+
+# Ferramentas de AppImage já extraídas, porque o runtime de um AppImage não roda
+# sob emulação (ver extrair-appimage.sh e linuxdeploy-sem-runtime.c): linuxdeploy
+# e plugin nas mesmas URLs que o Tauri usa; appimagetool e runtime type2
+# estático com os mesmos hashes do build original.
+COPY extrair-appimage.sh /usr/local/bin/extrair-appimage
+COPY ldd-emulado.sh /usr/local/bin/ldd
+COPY appimage-sem-runtime.sh linuxdeploy-sem-runtime.c /opt/appimage/
+RUN cd /opt/appimage \
+ && curl -fsSL --retry 3 -o linuxdeploy.AppImage https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy/linuxdeploy-x86_64.AppImage \
+ && curl -fsSL --retry 3 -o plugin.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage \
+ && curl -fsSL --retry 3 -o appimagetool.AppImage https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage \
+ && curl -fsSL --retry 3 -o runtime-x86_64 https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64 \
+ && echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool.AppImage" | sha256sum -c - \
+ && echo "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  runtime-x86_64" | sha256sum -c - \
+ && extrair-appimage linuxdeploy.AppImage linuxdeploy \
+ && extrair-appimage plugin.AppImage linuxdeploy-plugin-appimage \
+ && extrair-appimage appimagetool.AppImage appimagetool \
+ && rm linuxdeploy.AppImage plugin.AppImage appimagetool.AppImage \
+ && test -x linuxdeploy/AppRun && test -x linuxdeploy-plugin-appimage/AppRun && test -x appimagetool/AppRun \
+ && gcc -O2 -Wall -o linuxdeploy-sem-runtime linuxdeploy-sem-runtime.c \
+ && chmod +x /usr/local/bin/ldd /usr/local/bin/extrair-appimage appimage-sem-runtime.sh
+
+WORKDIR /work

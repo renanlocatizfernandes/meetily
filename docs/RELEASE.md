@@ -55,8 +55,15 @@ Os nomes não têm versão, para que os links `releases/latest/download/<arquivo
 - **Se a chave se perder, os apps já instalados não aceitam mais atualizações** e cada pessoa precisa reinstalar à mão. Guarde uma cópia no Bitwarden.
 - Nunca commite, imprima ou envie a chave privada. Os scripts só passam o caminho do arquivo.
 
+## Pré-requisitos deste Mac
+
+- macOS: Rust 1.99.1 com os alvos `aarch64-apple-darwin` e `x86_64-apple-darwin`, pnpm 9.15.9, cmake.
+- Linux: Colima com a VM `meetily-linux` (`colima start -p meetily-linux --cpu 6 --memory 8 --disk 60 --activate=false` na primeira vez). O `lancar.sh` liga e desliga a VM sozinho. O build cruza de arm64 para x86_64 num container Ubuntu 22.04 e empacota num container amd64.
+- Windows: Homebrew `llvm`, `lld`, `ninja`, `sevenzip`; `cargo install --locked cargo-xwin`; alvo `x86_64-pc-windows-msvc`; `makensis`. O ONNX Runtime 1.22.0 fica em `frontend/src-tauri/binaries/onnxruntime/` (fora do git); o build confere o SHA-256 de cada arquivo.
+
 ## Limites conhecidos
 
 - macOS: assinado com certificado de desenvolvimento, sem notarização; a primeira abertura precisa ser liberada em Privacidade e Segurança. A atualização pelo app não passa por essa barreira.
-- Windows: sem assinatura de código; o SmartScreen avisa na instalação.
+- Windows: sem assinatura de código; o SmartScreen avisa na instalação. O app usa o Visual C++ Redistributable; se o Windows reclamar de `MSVCP140.dll`, instale-o pelo site da Microsoft. Transcrição por CPU (AVX2), sem Vulkan.
+- Mac Intel: compilado por cruzamento; este Mac não tem Rosetta para executá-lo.
 - Windows e Linux são compilados fora do sistema de destino: teste o instalador numa máquina real antes de publicar quando houver mudança no núcleo.

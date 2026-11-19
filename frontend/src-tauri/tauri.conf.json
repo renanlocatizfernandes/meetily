@@ -117,7 +117,9 @@
                 "depends": [
                     "libvulkan1",
                     "libpulse0",
-                    "libasound2"
+                    "libasound2",
+                    "libgomp1",
+                    "libssl3"
                 ]
             }
         },

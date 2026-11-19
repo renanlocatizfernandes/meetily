@@ -48,7 +48,16 @@ if [ "$SO" = "tudo" ] || [ "$SO" = "mac" ]; then
   roda mac-intel "$AQUI/mac.sh" intel "$SAIDA"
 fi
 if [ "$SO" = "tudo" ] || [ "$SO" = "linux" ]; then
+  # O build de Linux roda numa VM Colima própria (6 CPU, 8 GB), parada entre usos.
+  if command -v colima >/dev/null && colima list 2>/dev/null | grep -q '^meetily-linux'; then
+    colima start -p meetily-linux --activate=false >/dev/null 2>&1 || true
+    export DOCKER_CONTEXT=colima-meetily-linux
+  fi
   roda linux "$AQUI/linux.sh" "$SAIDA"
+  if [ "${DOCKER_CONTEXT:-}" = "colima-meetily-linux" ]; then
+    colima stop -p meetily-linux >/dev/null 2>&1 || true
+    unset DOCKER_CONTEXT
+  fi
 fi
 if [ "$SO" = "tudo" ] || [ "$SO" = "windows" ]; then
   roda windows "$AQUI/windows.sh" "$SAIDA"

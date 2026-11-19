@@ -259,3 +259,9 @@ Quatro migrações novas rodam na primeira abertura: `20261120000000_assist_upgr
 - As sugestões ao vivo usam a API nativa do Ollama (`/api/chat`) com `num_ctx` de 4096 e sem modo de raciocínio. Com o `gemma4:12b` num Mac de 24 GB, o modelo carregado caiu de 16 GB para 7,8 GB. Se a chamada nativa não for aceita, o app volta para a rota compatível com OpenAI. Resumo e organização continuam com o contexto padrão do Ollama.
 - Barra lateral: durante a gravação o rodapé mostra só o tempo, sem empurrar os ícones; os filtros de conversas quebram em até duas linhas.
 - O diálogo "Classificar reunião" não deixa mais os campos passarem da largura.
+
+## Meetily Live Plus 1.0.0 (19/11/2026)
+
+- Canal oficial de atualização: o app consulta `latest.json` do release mais recente deste repositório, avisa quando há versão nova e instala por conta própria (Configurações → Sobre → Verificar atualizações, ou o menu da bandeja). A conferência se repete enquanto o app fica aberto.
+- Instaladores para Mac Apple Silicon, Mac Intel, Windows x64 e Linux x86_64, todos compilados neste Mac por `scripts/release/lancar.sh`. O processo está em `docs/RELEASE.md`.
+- Metadados do pacote passam a indicar a Tech Fernandes como responsável por esta versão.
