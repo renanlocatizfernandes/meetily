@@ -113,7 +113,33 @@ O nome do app é "Meetily Live". O identificador é `com.techfernandes.meetilyli
 - Dois fluxos de VAD, um único modelo de transcrição. A separação não cobre duas pessoas no mesmo canal. O áudio do sistema é todo mundo que não é o microfone.
 - A meta de primeira sugestão em até 3 s depende do modelo local e não foi medida aqui. O corte duro da chamada é 8 s.
 - A ajuda ao vivo não faz streaming de tokens. Reusa `generate_summary`, que é um POST só, e corta em 8 s com cancelamento.
-- Não há diarização por pessoa, só mic contra sistema.
-- A janela sempre visível é outra webview: fixar ou descartar num lado não altera o outro.
+- A separação por pessoa usa o espectro do trecho, não um modelo neural. Vozes sobrepostas no mesmo trecho continuam uma pessoa só. Veja a seção "Quem está falando".
+- A janela sempre visível é outra webview: fixar ou descartar num lado não altera o outro. Os nomes dados às pessoas ficam na reunião salva e valem para os trechos novos da gravação em andamento.
 - O atalho global pode falhar se outro app já registrou Ctrl+Shift+L ou ⌘+Shift+L. O app registra na subida e segue mesmo se o registro falhar.
-- Linux e Windows herdam o mesmo código, mas o `.dmg` e as permissões de áudio do sistema descritas acima são do macOS.
+- Linux e Windows herdam o mesmo código, mas o `.dmg` e as permissões de áudio do sistema descritas acima são do macOS. A detecção de reunião só observa processos e janelas no macOS.
+
+## Gravação automática (Teams, Zoom e Meet)
+
+No macOS, com a opção ligada (é o padrão, em Configurações → Gravação), o app observa a cada 2 segundos:
+
+- se o Teams novo (`com.microsoft.teams2`) ou o Teams clássico (`com.microsoft.teams`) tem o microfone em uso (`kAudioProcessPropertyIsRunningInput`, Core Audio, macOS 14.2 ou mais novo);
+- se o Zoom (`us.zoom.xos`) tem o microfone em uso;
+- se o Chrome, Safari, Edge, Firefox, Brave ou Arc tem o microfone em uso e o título da janela indica Microsoft Teams ou Google Meet.
+
+O título da janela vem de `CGWindowListCopyWindowInfo` (Core Graphics). O nome da janela de outro app só aparece se a Gravação de Tela já estiver concedida. Essa permissão o app já pede (`NSScreenCaptureUsageDescription`). Não há chave nova no Info.plist. Os títulos não são gravados em log nem enviados ao modelo.
+
+A chamada precisa permanecer cerca de 12 segundos antes de a gravação começar, e precisa sumir por cerca de 20 segundos antes de parar. Uma gravação iniciada à mão não é parada por essa lógica. Se você parar a gravação automática, ela não recomeça enquanto a chamada ainda estiver ativa. Desligar a opção impede uma nova gravação automática; a que já estiver no ar ainda para quando a chamada termina.
+
+Quando começa, aparece um aviso no topo com o nome do app e o botão Parar, além da notificação de gravação que o app já mostra. O app não se esconde do compartilhamento de tela. O texto na tela pede para avisar as outras pessoas de que a reunião está sendo gravada.
+
+No Linux e no Windows essa observação devolve lista vazia, então a gravação automática não dispara. O interruptor continua visível.
+
+Limites: uma mensagem de voz no Teams que use o microfone por mais de 12 segundos pode iniciar uma gravação. O título do navegador é uma heurística (precisa conter "Microsoft Teams" ou "Google Meet" e não ser a tela ociosa de chat, calendário ou arquivos). Sem a lista de processos, só uma janela do Teams com título de chamada conta.
+
+## Quem está falando
+
+Não há modelo de diarização baixado. O app calcula um espectro de 16 bandas (FFT de 512 pontos, `realfft`, que já era dependência) de cada trecho de voz e agrupa trechos parecidos no mesmo canal. O primeiro grupo do microfone fica "Você". Os outros ficam "Pessoa 1", "Pessoa 2" e assim por diante. Um trecho mais curto que 0,8 s herda a pessoa anterior daquele canal.
+
+Isso não separa duas pessoas falando ao mesmo tempo no áudio do sistema: o trecho inteiro vira uma pessoa. Também não é um embedding treinado, então vozes parecidas ou um trecho com ruído podem cair na pessoa errada. Não há arquivo de modelo para baixar e o cálculo roda na CPU, inclusive no Apple Silicon.
+
+Clique no nome na transcrição para renomear. O nome vale para aquela reunião (`speaker_aliases` e a coluna `transcripts.speaker`; a chave estável fica em `speaker_key`). Reuniões já salvas, sem essa coluna preenchida, continuam como estavam. O rótulo entra no texto da ajuda ao vivo, para a resposta mirar quem perguntou, e no texto enviado ao resumo depois da reunião.
