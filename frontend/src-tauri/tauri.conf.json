@@ -1,7 +1,7 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
     "productName": "Meetily Live Plus",
-    "version": "0.5.0",
+    "version": "1.0.0",
     "identifier": "com.techfernandes.meetilylive",
     "build": {
         "frontendDist": "../out",
@@ -65,6 +65,7 @@
                         "notification:default",
                         "notification:allow-is-permission-granted",
                         "process:default",
+                        "updater:default",
                         {
                             "identifier": "fs:scope",
                             "allow": [
@@ -80,11 +81,11 @@
     },
     "bundle": {
         "active": true,
-        "shortDescription": "Privacy-first AI meeting note taker",
-        "longDescription": "Meetily Community Edition is a free, open-source AI meeting assistant. Record meetings, transcribe audio locally and create AI summaries using local models or a provider you choose. Your recordings and transcripts stay on your device.",
+        "shortDescription": "Gravação, transcrição e resumo de reuniões no seu computador",
+        "longDescription": "Meetily Live Plus grava reuniões, transcreve o áudio no próprio computador e gera resumos com modelos locais ou com o provedor que você escolher. Versão modificada por Renan Locatiz Fernandes (Tech Fernandes), baseada no Meetily, projeto de código aberto da Zackriya Solutions.",
         "category": "Productivity",
-        "publisher": "Meetily",
-        "homepage": "https://meetily.ai",
+        "publisher": "Tech Fernandes",
+        "homepage": "https://techfernandes.com.br/meetily-live-plus/",
         "targets": [
             "deb",
             "appimage",
@@ -93,7 +94,7 @@
             "app",
             "dmg"
         ],
-        "createUpdaterArtifacts": false,
+        "createUpdaterArtifacts": true,
         "icon": [
             "icons/icon.png",
             "icons/icon_512x512.png",
@@ -113,16 +114,25 @@
         ],
         "linux": {
             "deb": {
-                "depends": ["libvulkan1", "libpulse0", "libasound2"]
+                "depends": [
+                    "libvulkan1",
+                    "libpulse0",
+                    "libasound2"
+                ]
             }
         },
         "macOS": {
             "entitlements": "entitlements.plist",
             "signingIdentity": "-",
             "hardenedRuntime": true
-        },
-        "windows": {
-            "signCommand": "powershell -ExecutionPolicy Bypass -File scripts/sign-windows.ps1 -FilePath %1"
+        }
+    },
+    "plugins": {
+        "updater": {
+            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI3NjE2RkQzMDY2NkQwRDQKUldUVTBHWUcwMjlodDc0QU5Qb0F3RUJudnJTTmdubGVRQWttNHVjMUQrK0EvRVlXMXFQQTI2MVEK",
+            "endpoints": [
+                "https://github.com/renanlocatizfernandes/meetily/releases/latest/download/latest.json"
+            ]
         }
     }
 }
