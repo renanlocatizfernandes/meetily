@@ -53,7 +53,16 @@ export function useUpdateCheck(options: UseUpdateCheckOptions = {}) {
         checkForUpdates(false);
       }, 2000); // Check 2 seconds after mount
 
-      return () => clearTimeout(timer);
+      // O app costuma ficar aberto por dias: confere de novo de tempos em
+      // tempos. O serviço ignora a chamada se já conferiu nas últimas 24 h.
+      const periodic = setInterval(() => {
+        checkForUpdates(false);
+      }, 6 * 60 * 60 * 1000);
+
+      return () => {
+        clearTimeout(timer);
+        clearInterval(periodic);
+      };
     }
   }, [checkOnMount]);
 
