@@ -50,7 +50,7 @@ export interface LiveAssistStatus {
 }
 
 const DEFAULT_SETTINGS: LiveAssistSettings = {
-  enabled: true,
+  enabled: false,
   model: 'llama3.2:latest',
   language: 'pt-BR',
   frequency: 'media',
@@ -93,7 +93,7 @@ export function LiveAssistProvider({ children }: { children: React.ReactNode }) 
     itemsRef.current = items;
   }, [items]);
   const [status, setStatus] = useState<LiveAssistStatus>({
-    enabled: true,
+    enabled: false,
     recording: false,
     busy: false,
     note: null,

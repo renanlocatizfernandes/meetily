@@ -252,3 +252,10 @@ Quatro migrações novas rodam na primeira abertura: `20261120000000_assist_upgr
 - Fala: entraram como alternativas o Parakeet v3 TAGARELA (ajustado para pt-BR, CC-BY-4.0) e o Whisper `large-v3-turbo-q8_0`. No teste com 80 trechos em português o TAGARELA empatou com o Parakeet v3 que já era o padrão (WER 8,4% contra 8,5%), então o recomendado não mudou.
 - Os modelos do Ollama são baixados pelo próprio Ollama local (`/api/pull`), com progresso e cancelamento. Só o `llama3.2` foi executado nos testes; os demais foram conferidos no registro (tamanho e licença), não em uso. Meça a latência em Configurações → Ajuda ao vivo antes de adotar um modelo maior.
 - Migrações novas desta rodada: `20261121000000_live_assist_context`, `20261121010000_voice_model_choice`, `20261121020000_meeting_end_settings`.
+
+### Ajustes de 19/11/2026
+
+- A ajuda ao vivo vem **desligada por padrão** (a migração `20261122000000_live_assist_off_by_default` desliga uma vez; depois vale a escolha do usuário).
+- As sugestões ao vivo usam a API nativa do Ollama (`/api/chat`) com `num_ctx` de 4096 e sem modo de raciocínio. Com o `gemma4:12b` num Mac de 24 GB, o modelo carregado caiu de 16 GB para 7,8 GB. Se a chamada nativa não for aceita, o app volta para a rota compatível com OpenAI. Resumo e organização continuam com o contexto padrão do Ollama.
+- Barra lateral: durante a gravação o rodapé mostra só o tempo, sem empurrar os ícones; os filtros de conversas quebram em até duas linhas.
+- O diálogo "Classificar reunião" não deixa mais os campos passarem da largura.

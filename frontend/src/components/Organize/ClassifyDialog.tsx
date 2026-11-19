@@ -313,12 +313,12 @@ export function ClassifyDialog({ meeting, open, onOpenChange, onSaved }: Classif
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!busy) onOpenChange(next); }}>
-      <DialogContent className="sm:max-w-[480px]">
-        <DialogHeader>
+      <DialogContent className="grid-cols-[minmax(0,1fr)] sm:max-w-[480px]">
+        <DialogHeader className="min-w-0">
           <DialogTitle>Classificar reunião</DialogTitle>
           <DialogDescription className="truncate">{meeting?.title}</DialogDescription>
         </DialogHeader>
-        <form id={formId} className="space-y-4" onSubmit={handleSave}>
+        <form id={formId} className="min-w-0 space-y-4" onSubmit={handleSave}>
           <div className="space-y-1.5">
             <Label htmlFor={`${formId}-cliente`}>Cliente</Label>
             <ComboInput
