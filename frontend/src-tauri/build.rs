@@ -7,8 +7,9 @@ fn main() {
     // GPU Acceleration Detection and Build Guidance
     detect_and_report_gpu_capabilities();
 
-    #[cfg(target_os = "macos")]
-    {
+    // Decide pelo sistema do ALVO: `#[cfg(target_os)]` num build script olha a
+    // máquina de build e quebrava a compilação cruzada para Windows a partir do macOS.
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
         println!("cargo:rustc-link-lib=framework=AVFoundation");
         println!("cargo:rustc-link-lib=framework=Cocoa");
         println!("cargo:rustc-link-lib=framework=Foundation");

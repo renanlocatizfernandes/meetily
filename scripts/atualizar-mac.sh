@@ -100,7 +100,16 @@ cd "$FRONT"
 pnpm install --frozen-lockfile
 # CI=true faz o Tauri pular o AppleScript do Finder ao montar o .dmg, que
 # falha quando o terminal não tem permissão de Automação.
-CI=true pnpm tauri:build
+# O atualizador exige que o pacote seja assinado com a chave do canal oficial.
+CHAVE_ATUALIZADOR="$HOME/.config/meetily-live/atualizador.key"
+if [ -f "$CHAVE_ATUALIZADOR" ]; then
+  export TAURI_SIGNING_PRIVATE_KEY="$CHAVE_ATUALIZADOR"
+  export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
+  CI=true pnpm tauri:build
+else
+  echo "Sem a chave do atualizador: build local sem pacote de atualização."
+  CI=true TAURI_GPU_FEATURE=metal pnpm exec tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}' -- --features metal
+fi
 
 DMG="$(ls -t "$RAIZ"/target/release/bundle/dmg/*.dmg 2>/dev/null | head -1 || true)"
 [ -n "$DMG" ] && [ -f "$DMG" ] || falha "o build terminou sem gerar o .dmg."

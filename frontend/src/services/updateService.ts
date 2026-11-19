@@ -30,6 +30,7 @@ export interface UpdateProgress {
  */
 export class UpdateService {
   private lastCheckTime: number | null = null;
+  private checkInProgress = false;
   private readonly CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
   /**
@@ -38,13 +39,31 @@ export class UpdateService {
    * @returns Promise with update information
    */
   async checkForUpdates(_force = false): Promise<UpdateInfo> {
-    // Este fork não consulta os releases do Meetily original: o atualizador
-    // automático foi desligado. A atualização é feita por scripts/atualizar-mac.sh.
+    // Canal oficial do Meetily Live Plus: o manifesto latest.json do release
+    // mais recente em github.com/renanlocatizfernandes/meetily, conferido com
+    // a chave pública gravada em tauri.conf.json.
+    const currentVersion = await getVersion();
+    if (this.checkInProgress) {
+      return { available: false, currentVersion };
+    }
+    this.checkInProgress = true;
     this.lastCheckTime = Date.now();
-    return {
-      available: false,
-      currentVersion: await getVersion(),
-    };
+    try {
+      const { check } = await import('@tauri-apps/plugin-updater');
+      const update = await check();
+      if (update) {
+        return {
+          available: true,
+          currentVersion,
+          version: update.version,
+          date: update.date,
+          body: update.body,
+        };
+      }
+      return { available: false, currentVersion };
+    } finally {
+      this.checkInProgress = false;
+    }
   }
 
   /**

@@ -331,6 +331,15 @@ fn find_ffmpeg_in_extracted_dir(
 
 /// Verify FFmpeg binary is functional (runs -version successfully)
 fn verify_ffmpeg_binary(path: &std::path::PathBuf) -> bool {
+    // Cross-compiling: the target binary cannot run on the build host, so the
+    // check is limited to "the file is there and is not a stub".
+    let target = std::env::var("TARGET").unwrap_or_default();
+    let host = std::env::var("HOST").unwrap_or_default();
+    if !target.is_empty() && !host.is_empty() && target != host {
+        return std::fs::metadata(path)
+            .map(|meta| meta.len() > 1_000_000)
+            .unwrap_or(false);
+    }
     match std::process::Command::new(path)
         .arg("-version")
         .output()
