@@ -477,3 +477,19 @@ html [data-sonner-toaster][data-sonner-theme] {
     scroll-behavior: auto !important;
   }
 }
+
+/* Recording level bars: moved by the compositor instead of a React state update every 300 ms. */
+@keyframes level-bar {
+  0%, 100% { transform: scaleY(0.45); }
+  50% { transform: scaleY(1); }
+}
+
+.level-bar {
+  height: 30px !important;
+  transform-origin: center;
+  animation: level-bar 0.9s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .level-bar { animation: none; transform: scaleY(0.7); }
+}

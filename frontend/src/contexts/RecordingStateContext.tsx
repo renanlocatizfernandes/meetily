@@ -72,6 +72,8 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
   });
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTickRef = useRef(0);
+  const ticksRef = useRef(0);
 
   // NEW: Status setter with logging
   const setStatus = useCallback((status: RecordingStatus, message?: string) => {
@@ -100,8 +102,7 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
         recordingDuration: backendState.recording_duration,
         activeDuration: backendState.active_duration,
       }));
-
-      console.log('[RecordingStateContext] Synced with backend:', backendState);
+      lastTickRef.current = Date.now();
     } catch (error) {
       console.error('[RecordingStateContext] Failed to sync with backend:', error);
       // Don't update state on error - keep current state
@@ -109,15 +110,45 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
   };
 
   /**
-   * Start polling backend state (called when recording starts)
+   * While recording, the clock advances locally once a second and the backend is
+   * asked for the real state every SYNC_EVERY_TICKS seconds. Start, stop, pause and
+   * resume already arrive as events; the slow sync only corrects drift and catches
+   * a missed event, without an IPC call every half second for the whole meeting.
+   */
+  const SYNC_EVERY_TICKS = 5;
+
+  const tick = () => {
+    ticksRef.current += 1;
+    if (ticksRef.current % SYNC_EVERY_TICKS === 0) {
+      void syncWithBackend();
+      return;
+    }
+    const now = Date.now();
+    const elapsed = lastTickRef.current ? (now - lastTickRef.current) / 1000 : 0;
+    lastTickRef.current = now;
+    if (elapsed <= 0) return;
+    setState(prev => {
+      if (!prev.isRecording) return prev;
+      return {
+        ...prev,
+        recordingDuration: prev.recordingDuration === null ? null : prev.recordingDuration + elapsed,
+        activeDuration: prev.isPaused || prev.activeDuration === null ? prev.activeDuration : prev.activeDuration + elapsed,
+      };
+    });
+  };
+
+  /**
+   * Start the recording clock and the slow backend sync (called when recording starts)
    */
   const startPolling = () => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
     }
 
-    console.log('[RecordingStateContext] Starting state polling (500ms interval)');
-    pollingIntervalRef.current = setInterval(syncWithBackend, 500);
+    ticksRef.current = 0;
+    lastTickRef.current = Date.now();
+    void syncWithBackend();
+    pollingIntervalRef.current = setInterval(tick, 1000);
   };
 
   /**
@@ -361,6 +392,13 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
     console.log('[RecordingStateContext] Initial mount - syncing with backend');
     syncWithBackend();
   }, []);
+
+  // A recording found by the mount sync (page reload mid-meeting) gets its clock too.
+  useEffect(() => {
+    if (state.isRecording && !pollingIntervalRef.current) {
+      startPolling();
+    }
+  }, [state.isRecording]);
 
   // NEW: Computed helpers from status
   const contextValue = useMemo(() => ({

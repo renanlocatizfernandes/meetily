@@ -644,7 +644,10 @@ impl AudioCapture {
         const TARGET_SAMPLE_RATE: u32 = 48000;
         if self.needs_resampling {
             let before_len = mono_data.len();
-            let before_rms = if !mono_data.is_empty() {
+            // The RMS below only feeds the diagnostic log written every 100th chunk.
+            let chunk_id = self.chunk_counter.load(std::sync::atomic::Ordering::SeqCst);
+            let log_this_chunk = chunk_id % 100 == 0;
+            let before_rms = if log_this_chunk && !mono_data.is_empty() {
                 (mono_data.iter().map(|&x| x * x).sum::<f32>() / mono_data.len() as f32).sqrt()
             } else {
                 0.0
@@ -711,8 +714,7 @@ impl AudioCapture {
             }
 
             // Log resampling only occasionally to avoid spam
-            let chunk_id = self.chunk_counter.load(std::sync::atomic::Ordering::SeqCst);
-            if chunk_id % 100 == 0 && has_resampled_output {
+            if log_this_chunk && has_resampled_output {
                 let after_len = mono_data.len();
                 let after_rms = if !mono_data.is_empty() {
                     (mono_data.iter().map(|&x| x * x).sum::<f32>() / mono_data.len() as f32).sqrt()
@@ -1150,7 +1152,7 @@ impl AudioPipeline {
         // STEP 4: Send mixed audio for recording (WAV file)
         if let Some(ref sender) = self.recording_sender_for_mixed {
             let recording_chunk = AudioChunk {
-                data: mixed_with_gain.clone(),
+                data: mixed_with_gain, // moved: the mixed window is not used after this send
                 sample_rate: self.sample_rate,
                 timestamp,
                 chunk_id: self.chunk_id_counter,

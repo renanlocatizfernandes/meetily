@@ -30,47 +30,62 @@ LOGS="$SAIDA/logs"; mkdir -p "$LOGS"
 AQUI="$(dirname "$0")"
 [ -f "$RAIZ/docs/releases/$VERSAO.md" ] || falha "escreva as notas em docs/releases/$VERSAO.md antes de compilar."
 
-declare -a RESUMO=()
+# Cada plataforma grava uma linha de resumo num arquivo: o Linux roda em segundo
+# plano (na VM) enquanto Mac e Windows compilam aqui, e um array não atravessa
+# o subshell.
+RESUMOS="$LOGS/.resumo"; : > "$RESUMOS"
 roda() {
   local nome="$1"; shift
   passo "$nome (log em $LOGS/$nome.log)"
   local inicio=$SECONDS
   if "$@" > "$LOGS/$nome.log" 2>&1; then
-    RESUMO+=("ok     $nome  $(( (SECONDS - inicio) / 60 )) min")
+    echo "ok     $nome  $(( (SECONDS - inicio) / 60 )) min" >> "$RESUMOS"
   else
-    RESUMO+=("FALHOU $nome  veja $LOGS/$nome.log")
-    tail -5 "$LOGS/$nome.log" | sed 's/^/    /'
+    echo "FALHOU $nome  veja $LOGS/$nome.log" >> "$RESUMOS"
+    tail -5 "$LOGS/$nome.log" | sed "s/^/    [$nome] /"
   fi
 }
 
+linux_vm() {
+  # O build de Linux roda numa VM Colima própria (6 CPU, 8 GB), parada entre usos.
+  local contexto=""
+  if command -v colima >/dev/null && colima list 2>/dev/null | grep -q '^meetily-linux'; then
+    colima start -p meetily-linux --activate=false >/dev/null 2>&1 || true
+    contexto=colima-meetily-linux
+  fi
+  # Roda em subshell (segundo plano): o export não vaza para Mac e Windows.
+  [ -n "$contexto" ] && export DOCKER_CONTEXT="$contexto"
+  roda linux "$AQUI/linux.sh" "$SAIDA"
+  [ -n "$contexto" ] && colima stop -p meetily-linux >/dev/null 2>&1 || true
+}
+
+# Linux em paralelo: a VM usa os próprios 6 núcleos enquanto Mac e Windows
+# compilam no host. Mac e Windows seguem em sequência entre si, porque dividem
+# os mesmos núcleos e a mesma pasta target/.
+PID_LINUX=""
+if [ "$SO" = "tudo" ] || [ "$SO" = "linux" ]; then
+  linux_vm & PID_LINUX=$!
+fi
 if [ "$SO" = "tudo" ] || [ "$SO" = "mac" ]; then
   roda mac-apple-silicon "$AQUI/mac.sh" apple-silicon "$SAIDA"
   roda mac-intel "$AQUI/mac.sh" intel "$SAIDA"
 fi
-if [ "$SO" = "tudo" ] || [ "$SO" = "linux" ]; then
-  # O build de Linux roda numa VM Colima própria (6 CPU, 8 GB), parada entre usos.
-  if command -v colima >/dev/null && colima list 2>/dev/null | grep -q '^meetily-linux'; then
-    colima start -p meetily-linux --activate=false >/dev/null 2>&1 || true
-    export DOCKER_CONTEXT=colima-meetily-linux
-  fi
-  roda linux "$AQUI/linux.sh" "$SAIDA"
-  if [ "${DOCKER_CONTEXT:-}" = "colima-meetily-linux" ]; then
-    colima stop -p meetily-linux >/dev/null 2>&1 || true
-    unset DOCKER_CONTEXT
-  fi
-fi
 if [ "$SO" = "tudo" ] || [ "$SO" = "windows" ]; then
   roda windows "$AQUI/windows.sh" "$SAIDA"
+fi
+if [ -n "$PID_LINUX" ]; then
+  passo "Esperando o Linux terminar"
+  wait "$PID_LINUX" || true
 fi
 
 passo "Manifesto do atualizador"
 "$AQUI/manifesto.py" "$SAIDA" || falha "não foi possível gerar o manifesto."
 
 passo "Resumo da versão $VERSAO"
-printf '  %s\n' "${RESUMO[@]}"
+sed 's/^/  /' "$RESUMOS"
 echo "Arquivos em $SAIDA"
 
-if printf '%s\n' "${RESUMO[@]}" | grep -q '^FALHOU'; then
+if grep -q '^FALHOU' "$RESUMOS"; then
   [ "$PUBLICAR" = 1 ] && echo "Não publiquei: há plataforma com falha."
   exit 1
 fi

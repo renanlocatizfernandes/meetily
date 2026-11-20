@@ -265,3 +265,16 @@ Quatro migrações novas rodam na primeira abertura: `20261120000000_assist_upgr
 - Canal oficial de atualização: o app consulta `latest.json` do release mais recente deste repositório, avisa quando há versão nova e instala por conta própria (Configurações → Sobre → Verificar atualizações, ou o menu da bandeja). A conferência se repete enquanto o app fica aberto.
 - Instaladores para Mac Apple Silicon, Mac Intel, Windows x64 e Linux x86_64, todos compilados neste Mac por `scripts/release/lancar.sh`. O processo está em `docs/RELEASE.md`.
 - Metadados do pacote passam a indicar a Tech Fernandes como responsável por esta versão.
+
+## Meetily Live Plus 1.1.0 (20/11/2026)
+
+Versão de desempenho. Notas para o usuário em `docs/releases/1.1.0.md`.
+
+- Relógio da gravação: o `RecordingStateContext` conta o tempo localmente a cada segundo e só consulta `get_recording_state` a cada 5 segundos; o `useRecordingStateSync` passou de 1 s para 5 s.
+- Barras de nível animadas por CSS (`.level-bar`, com alternativa para movimento reduzido) em vez de um `setInterval` de 300 ms que redesenhava a página.
+- Efeito de digitação da transcrição ao vivo a cada 33 ms (antes 15 ms).
+- Editor BlockNote do resumo carregado sob demanda (`LazyBlockNoteSummaryView`): o primeiro carregamento de `/meeting-details` caiu de 812 kB para 273 kB.
+- Perfil de release no `Cargo.toml` da raiz: `lto = "thin"`, `codegen-units = 1`, `strip = "symbols"`.
+- Pipeline de áudio: uma cópia a menos por janela mixada e o RMS de diagnóstico só é calculado nos blocos que vão para o log.
+- Removidos arquivos Rust e componentes React que não eram compilados nem importados (cerca de 6.900 linhas) e a dependência `lodash`.
+- `scripts/release/lancar.sh` compila o Linux em paralelo com o Mac e o Windows; `scripts/release/mac.sh` usa o certificado Developer ID e notariza quando ele está no Keychain.

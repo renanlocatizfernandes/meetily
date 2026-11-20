@@ -1,7 +1,8 @@
 "use client";
 
 import { MeetingSummary, Summary, Transcript } from '@/types';
-import { BlockNoteSummaryView, BlockNoteSummaryViewRef } from '@/components/AISummary/BlockNoteSummaryView';
+import type { BlockNoteSummaryViewRef } from '@/components/AISummary/BlockNoteSummaryView';
+import { LazyBlockNoteSummaryView } from '@/components/AISummary/LazyBlockNoteSummaryView';
 import { EmptyStateSummary } from '@/components/EmptyStateSummary';
 import { ModelConfig } from '@/components/ModelSettingsModal';
 import { SummaryGeneratorButtonGroup } from './SummaryGeneratorButtonGroup';
@@ -299,7 +300,7 @@ export function SummaryPanel({
       ) : (
         <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 custom-scrollbar">
           <div className="reading mx-auto w-full max-w-[820px] p-6">
-            <BlockNoteSummaryView
+            <LazyBlockNoteSummaryView
               ref={summaryRef}
               summaryData={aiSummary}
               onSave={onSaveSummary}

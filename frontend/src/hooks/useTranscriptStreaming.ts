@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { TranscriptSegmentData } from '@/types';
 
-const INTERVAL_MS = 15; // Character reveal interval
+const INTERVAL_MS = 33; // Character reveal interval (~30 fps: smooth, half the renders of 15 ms)
 const DURATION_MS = 800; // Total streaming duration
 const INITIAL_CHARS = 5; // Show first N characters immediately
 
