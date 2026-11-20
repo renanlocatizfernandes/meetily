@@ -278,3 +278,14 @@ Versão de desempenho. Notas para o usuário em `docs/releases/1.1.0.md`.
 - Pipeline de áudio: uma cópia a menos por janela mixada e o RMS de diagnóstico só é calculado nos blocos que vão para o log.
 - Removidos arquivos Rust e componentes React que não eram compilados nem importados (cerca de 6.900 linhas) e a dependência `lodash`.
 - `scripts/release/lancar.sh` compila o Linux em paralelo com o Mac e o Windows; `scripts/release/mac.sh` usa o certificado Developer ID e notariza quando ele está no Keychain.
+
+## Meetily Live Plus 1.2.0 (20/11/2026)
+
+Versão de inteligência, com tudo novo desligado por padrão. Notas para o usuário em `docs/releases/1.2.0.md`; detalhes no PR #6.
+
+- Provedores (`anthropic/`, `openai/`, `openrouter/`, `summary/llm_client.rs`): lista de modelos da API com cache e lista de reserva, `test_llm_provider_connection`, retry com backoff em 429/5xx/529, erros em pt-BR, prompt caching da Anthropic, `set_llm_reasoning_effort` e `set_llm_fallback_chain`.
+- `autopilot/`: piloto automático pós-reunião (resumo, tarefas, decisões, título, etiquetas, rascunho de e-mail), disparado depois de `api_save_transcript`. Migração `20261125000000_autopilot.sql`.
+- `live_assist/` e `assist_plus/`: alertas locais, recapitulação, sugestão de resposta, modo economia e consumo estimado. Migração `20261123000000_live_assist_smart.sql`.
+- `ask/`: índice local de trechos (FTS5 ou LIKE, criado em tempo de execução) e `ask_meetings` com citações.
+- `summary/templates/detect.rs` e `speakers/suggest.rs`: tipo de reunião, escolha do modelo de resumo e sugestão de nomes; cinco modelos novos em `frontend/src-tauri/templates/`.
+- `jev/`: conexão opcional com o Jev da TypeSafe AI.
