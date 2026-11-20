@@ -63,7 +63,7 @@ Os nomes não têm versão, para que os links `releases/latest/download/<arquivo
 
 ## Limites conhecidos
 
-- macOS: assinado com certificado de desenvolvimento, sem notarização; a primeira abertura precisa ser liberada em Privacidade e Segurança. A atualização pelo app não passa por essa barreira.
+- macOS: assinado com "Developer ID Application: R L FERNANDES LTDA (8HMZ5L98YQ)" e notarizado. O `mac.sh` acha o certificado no Keychain e lê os ids da chave da API em `~/.config/meetily-live/notarizacao` (a chave fica em `~/.config/techfernandes/asc/`). Cópia do certificado: item `techfernandes / apple developer id` no Bitwarden. Sem o certificado, o script volta à assinatura antiga, sem notarização.
 - Windows: sem assinatura de código; o SmartScreen avisa na instalação. O app usa o Visual C++ Redistributable; se o Windows reclamar de `MSVCP140.dll`, instale-o pelo site da Microsoft. Transcrição por CPU (AVX2), sem Vulkan.
 - Mac Intel: compilado por cruzamento; este Mac não tem Rosetta para executá-lo.
 - Windows e Linux são compilados fora do sistema de destino: teste o instalador numa máquina real antes de publicar quando houver mudança no núcleo.

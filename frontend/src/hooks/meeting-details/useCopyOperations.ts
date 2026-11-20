@@ -1,6 +1,6 @@
 import { useCallback, RefObject } from 'react';
 import { MeetingSummary, Transcript } from '@/types';
-import { BlockNoteSummaryViewRef } from '@/components/AISummary/BlockNoteSummaryView';
+import type { BlockNoteSummaryViewRef } from '@/components/AISummary/BlockNoteSummaryView';
 import { toast } from 'sonner';
 import Analytics from '@/lib/analytics';
 import { invoke as invokeTauri } from '@tauri-apps/api/core';

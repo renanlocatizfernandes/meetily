@@ -476,10 +476,11 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                       <div
                         key={index}
                         className={`w-1 rounded-full transition-all duration-150 ${isPaused ? 'bg-warning' : 'bg-recording'
-                          }`}
+                          } ${isRecording && !isPaused ? 'level-bar' : ''}`}
                         style={{
                           height: isRecording && !isPaused ? height : '4px',
                           opacity: isPaused ? 0.6 : 1,
+                          animationDelay: `${index * 140}ms`,
                         }}
                       />
                     ))}

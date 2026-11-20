@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { MeetingSummary, Summary, Transcript } from '@/types';
-import { BlockNoteSummaryViewRef } from '@/components/AISummary/BlockNoteSummaryView';
+import type { BlockNoteSummaryViewRef } from '@/components/AISummary/BlockNoteSummaryView';
 import { CurrentMeeting, useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { invoke as invokeTauri } from '@tauri-apps/api/core';
 import { toast } from 'sonner';

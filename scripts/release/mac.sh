@@ -50,9 +50,32 @@ passo "Assinatura da Apple"
 ARQ_IDENT="$HOME/.config/meetily-live/assinatura"
 IDENT=""
 [ -f "$ARQ_IDENT" ] && IDENT="$(tr -d '\n' < "$ARQ_IDENT")"
-if [ -n "$IDENT" ] && security find-identity -v -p codesigning | grep -qF "$IDENT"; then
+# Com um certificado "Developer ID Application" da equipe, o app é assinado com
+# ele e notarizado pela Apple (some o "Abrir Mesmo Assim"). A notarização usa a
+# chave da API do App Store Connect: o .p8 em ~/.config/techfernandes/asc/ e os
+# IDs (não secretos) em ~/.config/meetily-live/notarizacao, com as linhas
+# APPLE_API_KEY=<id da chave> e APPLE_API_ISSUER=<id do emissor>.
+EQUIPE="${MEETILY_EQUIPE_APPLE:-8HMZ5L98YQ}"
+DEVID="$(security find-identity -v -p codesigning | sed -n "s/.*\"\(Developer ID Application: .*($EQUIPE)\)\"/\1/p" | head -1)"
+NOTARIZA="$HOME/.config/meetily-live/notarizacao"
+unset APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_PATH || true
+if [ -n "$DEVID" ]; then
+  export APPLE_SIGNING_IDENTITY="$DEVID"
+  echo "Assinando com o Developer ID da equipe $EQUIPE."
+  if [ -f "$NOTARIZA" ]; then
+    APPLE_API_KEY="$(sed -n 's/^APPLE_API_KEY=//p' "$NOTARIZA")"
+    APPLE_API_ISSUER="$(sed -n 's/^APPLE_API_ISSUER=//p' "$NOTARIZA")"
+    APPLE_API_KEY_PATH="$HOME/.config/techfernandes/asc/AuthKey_$APPLE_API_KEY.p8"
+    [ -n "$APPLE_API_KEY" ] && [ -n "$APPLE_API_ISSUER" ] && [ -f "$APPLE_API_KEY_PATH" ] \
+      || falha "dados de notarização incompletos em $NOTARIZA ou falta o .p8."
+    export APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_PATH
+    echo "Notarização ligada (o Tauri envia o app à Apple e grampeia o tíquete)."
+  else
+    echo "Aviso: sem $NOTARIZA o app sai assinado, mas não notarizado."
+  fi
+elif [ -n "$IDENT" ] && security find-identity -v -p codesigning | grep -qF "$IDENT"; then
   export APPLE_SIGNING_IDENTITY="$IDENT"
-  echo "Identidade fixa encontrada."
+  echo "Identidade fixa encontrada (sem Developer ID: não dá para notarizar)."
 else
   unset APPLE_SIGNING_IDENTITY || true
   echo "Sem identidade fixa: assinatura ad hoc (o macOS pede as permissões de novo a cada versão)."
@@ -75,6 +98,10 @@ TGZ="$BUNDLE/macos/$NOME.app.tar.gz"
 passo "Conferindo"
 APP="$BUNDLE/macos/$NOME.app"
 codesign --verify --deep --strict "$APP" || falha "a assinatura do app não confere."
+if [ -n "${APPLE_API_KEY:-}" ]; then
+  xcrun stapler validate "$APP" || falha "o app não saiu notarizado (tíquete ausente)."
+  spctl --assess --type execute "$APP" || falha "o Gatekeeper recusou o app notarizado."
+fi
 ARQS="$(for exe in "$APP/Contents/MacOS/"*; do lipo -archs "$exe"; done | tr '\n' ' ')"
 echo "Arquiteturas dos executáveis: $ARQS"
 ESPERADA="${ALVO%%-*}"; [ "$ESPERADA" = "aarch64" ] && ESPERADA="arm64"
