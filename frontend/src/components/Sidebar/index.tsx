@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Check,
   ListFilter,
+  MessageCircleQuestion,
   MessagesSquare,
   Mic,
   NotebookText,
@@ -21,6 +22,7 @@ import { ConversationList } from './ConversationList';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { useImportDialog } from '@/contexts/ImportDialogContext';
 import { useConfig } from '@/contexts/ConfigContext';
+import { useFeatures } from '@/contexts/FeatureContext';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import {
@@ -96,6 +98,7 @@ const Sidebar: React.FC = () => {
   const { isRecording, isPaused, activeDuration } = useRecordingState();
   const { openImportDialog } = useImportDialog();
   const { betaFeatures } = useConfig();
+  const { toggles } = useFeatures();
   const { actions, dialogs } = useMeetingActions();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -104,6 +107,7 @@ const Sidebar: React.FC = () => {
 
   const isHomePage = pathname === '/';
   const isMeetingPage = pathname?.includes('/meeting-details') ?? false;
+  const isAskPage = pathname === '/ask';
   const isSettingsPage = pathname === '/settings';
   const isFeedbackPage = pathname === '/feedback';
 
@@ -267,6 +271,11 @@ const Sidebar: React.FC = () => {
         <IconButton label="Buscar ou perguntar (⌘K)" tooltipSide="right" onClick={() => setSearchDialogOpen(true)}>
           <Search />
         </IconButton>
+        {toggles.meetingSearch && (
+          <IconButton label="Perguntar às reuniões" tooltipSide="right" active={isAskPage} onClick={() => router.push('/ask')}>
+            <MessageCircleQuestion />
+          </IconButton>
+        )}
         <IconButton
           label="Reuniões"
           tooltipSide="right"
@@ -366,6 +375,14 @@ const Sidebar: React.FC = () => {
             shortcut="⌘K"
             onClick={() => setSearchDialogOpen(true)}
           />
+          {toggles.meetingSearch && (
+            <NavItem
+              icon={<MessageCircleQuestion />}
+              label="Perguntar às reuniões"
+              active={isAskPage}
+              onClick={() => router.push('/ask')}
+            />
+          )}
           {betaFeatures.importAndRetranscribe && (
             <NavItem icon={<Upload />} label="Importar áudio" onClick={() => openImportDialog()} />
           )}

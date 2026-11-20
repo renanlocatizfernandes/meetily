@@ -13,7 +13,9 @@ import { ButtonGroup } from '@/components/ui/button-group';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuCheckboxItem,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Sparkles, Settings, Loader2, FileText, Check, Square } from 'lucide-react';
@@ -32,6 +34,8 @@ interface SummaryGeneratorButtonGroupProps {
   availableTemplates: Array<{ id: string, name: string, description: string }>;
   selectedTemplate: string;
   onTemplateSelect: (templateId: string, templateName: string) => void;
+  autoTemplate?: boolean;
+  onAutoTemplateChange?: (enabled: boolean) => void;
   hasTranscripts?: boolean;
   hasSummary?: boolean;
   isModelConfigLoading?: boolean;
@@ -49,6 +53,8 @@ export function SummaryGeneratorButtonGroup({
   availableTemplates,
   selectedTemplate,
   onTemplateSelect,
+  autoTemplate,
+  onAutoTemplateChange,
   hasTranscripts = true,
   hasSummary = false,
   isModelConfigLoading = false,
@@ -187,7 +193,19 @@ export function SummaryGeneratorButtonGroup({
                 )}
               </DropdownMenuItem>
             ))}
-
+            {onAutoTemplateChange && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  checked={autoTemplate ?? true}
+                  onCheckedChange={(checked) => onAutoTemplateChange(checked === true)}
+                  onSelect={(event) => event.preventDefault()}
+                  title="Sugere o modelo pelo conteúdo da conversa. Você sempre pode trocar."
+                >
+                  Escolher o modelo automaticamente
+                </DropdownMenuCheckboxItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       )}

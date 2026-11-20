@@ -1,0 +1,37 @@
+{
+  "name": "Aula ou treinamento",
+  "description": "Para aulas, palestras e treinamentos: conceitos, exemplos, dúvidas e material de estudo.",
+  "sections": [
+    {
+      "title": "Resumo da aula",
+      "instruction": "Resuma em um parágrafo o tema e o objetivo da aula",
+      "format": "paragraph"
+    },
+    {
+      "title": "Conceitos principais",
+      "instruction": "Liste e explique em linguagem simples os conceitos apresentados",
+      "format": "list"
+    },
+    {
+      "title": "Exemplos e exercícios",
+      "instruction": "Liste os exemplos, casos e exercícios mostrados",
+      "format": "list"
+    },
+    {
+      "title": "Dúvidas dos participantes",
+      "instruction": "Liste as perguntas feitas e as respostas dadas",
+      "format": "list"
+    },
+    {
+      "title": "Para revisar",
+      "instruction": "Liste termos, fórmulas ou passos que valem ser revistos",
+      "format": "list"
+    },
+    {
+      "title": "Tarefas e materiais",
+      "instruction": "Liste tarefas, leituras e materiais indicados, com prazo se houver",
+      "format": "list",
+      "item_format": "| **Responsável** | Tarefa | Prazo |\n| --- | --- | --- |"
+    }
+  ]
+}

@@ -29,6 +29,8 @@ import {
 } from '@/components/ui/command';
 import { cn, isOllamaNotInstalledError } from '@/lib/utils';
 import { toast } from 'sonner';
+import { TestConnectionButton, CloudProviderExtras } from '@/components/ModelAdvisor';
+import { ModelMeta, describeModel } from '@/lib/llmProviders';
 
 export interface ModelConfig {
   provider: 'ollama' | 'groq' | 'claude' | 'openai' | 'openrouter' | 'builtin-ai' | 'custom-openai';
@@ -67,6 +69,7 @@ interface OpenAIModel {
 interface AnthropicModel {
   id: string;
   display_name?: string;
+  context_length?: number | null;
 }
 
 interface GroqModel {
@@ -88,10 +91,10 @@ const OPENAI_FALLBACK_MODELS = [
 ];
 
 const CLAUDE_FALLBACK_MODELS = [
-  'claude-sonnet-4-5-20250929',
-  'claude-haiku-4-5-20251001',
-  'claude-opus-4-5-20251101',
-  'claude-3-5-sonnet-latest',
+  'claude-opus-5-5',
+  'claude-sonnet-5-5',
+  'claude-haiku-5-5',
+  'claude-fable-5-2',
 ];
 
 const GROQ_FALLBACK_MODELS = [
@@ -174,6 +177,8 @@ export function ModelSettingsModal({
   const [isLoadingOpenAI, setIsLoadingOpenAI] = useState<boolean>(false);
   const [isLoadingClaude, setIsLoadingClaude] = useState<boolean>(false);
   const [isLoadingGroq, setIsLoadingGroq] = useState<boolean>(false);
+  // Display name / context / price per model id, when the provider informs them
+  const [modelMeta, setModelMeta] = useState<Record<string, ModelMeta>>({});
 
   // Use global download context instead of local state
   const { isDownloading, getProgress, downloadingModels } = useOllamaDownload();
@@ -494,14 +499,28 @@ export function ModelSettingsModal({
     };
   }, [modelConfig.provider]); // Only depend on provider, NOT endpoint
 
-  const loadOpenRouterModels = async () => {
-    if (openRouterModels.length > 0) return; // Already loaded
+  const loadOpenRouterModels = async (forceRefresh = false) => {
+    if (!forceRefresh && openRouterModels.length > 0) return; // Already loaded
 
     try {
       setIsLoadingOpenRouter(true);
       setOpenRouterError('');
-      const data = (await invoke('get_openrouter_models')) as OpenRouterModel[];
+      const data = (await invoke('get_openrouter_models', { forceRefresh })) as OpenRouterModel[];
       setOpenRouterModels(data);
+      setModelMeta((prev) => ({
+        ...prev,
+        ...Object.fromEntries(
+          data.map((m) => [
+            m.id,
+            {
+              label: m.name,
+              contextLength: m.context_length,
+              promptPrice: m.prompt_price,
+              completionPrice: m.completion_price,
+            } as ModelMeta,
+          ]),
+        ),
+      }));
     } catch (err) {
       console.error('Error loading OpenRouter models:', err);
       setOpenRouterError(
@@ -533,14 +552,14 @@ export function ModelSettingsModal({
   };
 
   // Fetch OpenAI models from API
-  const loadOpenAIModels = async (key: string | null) => {
+  const loadOpenAIModels = async (key: string | null, forceRefresh = false) => {
     if (!key?.trim()) {
       setOpenaiModels([]); // Will use fallback via modelOptions
       return;
     }
     setIsLoadingOpenAI(true);
     try {
-      const data = (await invoke('get_openai_models', { apiKey: key })) as OpenAIModel[];
+      const data = (await invoke('get_openai_models', { apiKey: key, forceRefresh })) as OpenAIModel[];
       setOpenaiModels(data.map((m) => m.id));
     } catch (err) {
       console.error('Error loading OpenAI models:', err);
@@ -551,15 +570,21 @@ export function ModelSettingsModal({
   };
 
   // Fetch Anthropic (Claude) models from API
-  const loadClaudeModels = async (key: string | null) => {
+  const loadClaudeModels = async (key: string | null, forceRefresh = false) => {
     if (!key?.trim()) {
       setClaudeModels([]); // Will use fallback via modelOptions
       return;
     }
     setIsLoadingClaude(true);
     try {
-      const data = (await invoke('get_anthropic_models', { apiKey: key })) as AnthropicModel[];
+      const data = (await invoke('get_anthropic_models', { apiKey: key, forceRefresh })) as AnthropicModel[];
       setClaudeModels(data.map((m) => m.id));
+      setModelMeta((prev) => ({
+        ...prev,
+        ...Object.fromEntries(
+          data.map((m) => [m.id, { label: m.display_name, contextLength: m.context_length } as ModelMeta]),
+        ),
+      }));
     } catch (err) {
       console.error('Error loading Claude models:', err);
       setClaudeModels([]); // Will use fallback via modelOptions
@@ -908,7 +933,7 @@ export function ModelSettingsModal({
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[250px] p-0" align="start">
+                <PopoverContent className="w-[340px] p-0" align="start">
                   <Command>
                     <CommandInput placeholder="Buscar modelos..." />
                     <CommandList className="max-h-[300px]">
@@ -928,6 +953,7 @@ export function ModelSettingsModal({
                               <CommandItem
                                 key={model}
                                 value={model}
+                                keywords={modelMeta[model]?.label ? [modelMeta[model].label as string] : undefined}
                                 onSelect={(currentValue) => {
                                   setModelConfig((prev: ModelConfig) => ({ ...prev, model: currentValue }));
                                   setModelComboboxOpen(false);
@@ -935,11 +961,20 @@ export function ModelSettingsModal({
                               >
                                 <Check
                                   className={cn(
-                                    "mr-2 h-4 w-4",
+                                    "mr-2 h-4 w-4 shrink-0",
                                     modelConfig.model === model ? "opacity-100" : "opacity-0"
                                   )}
                                 />
-                                <span className="truncate">{model}</span>
+                                <div className="min-w-0">
+                                  <span className="block truncate">{modelMeta[model]?.label || model}</span>
+                                  {(modelMeta[model]?.label || describeModel(modelMeta[model])) && (
+                                    <span className="block truncate text-xs text-muted-foreground">
+                                      {[modelMeta[model]?.label ? model : '', describeModel(modelMeta[model])]
+                                        .filter(Boolean)
+                                        .join(' · ')}
+                                    </span>
+                                  )}
+                                </div>
                               </CommandItem>
                             ))}
                           </CommandGroup>
@@ -1120,6 +1155,30 @@ export function ModelSettingsModal({
                 </Button>
               </div>
             </div>
+          </div>
+        )}
+
+        {(modelConfig.provider === 'claude' ||
+          modelConfig.provider === 'openai' ||
+          modelConfig.provider === 'openrouter') && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-start gap-3">
+              <TestConnectionButton provider={modelConfig.provider} apiKey={apiKey} />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (modelConfig.provider === 'claude') loadClaudeModels(apiKey, true);
+                  else if (modelConfig.provider === 'openai') loadOpenAIModels(apiKey, true);
+                  else loadOpenRouterModels(true);
+                }}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Atualizar lista de modelos
+              </Button>
+            </div>
+            <CloudProviderExtras />
           </div>
         )}
 

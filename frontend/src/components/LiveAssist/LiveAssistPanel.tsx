@@ -7,6 +7,10 @@ import { RecursosBar } from '@/components/Recursos/RecursosBar';
 import { ProvisionalItem } from '@/components/LiveAssist/ProvisionalItem';
 import { OriginTag } from '@/components/LiveAssist/OriginTag';
 import { ContextInUse } from '@/components/LiveAssist/ContextInUse';
+import { SmartAlerts } from '@/components/LiveAssist/SmartAlerts';
+import { RecapCard } from '@/components/LiveAssist/RecapCard';
+import { UsageBadge } from '@/components/LiveAssist/UsageBadge';
+import { useLiveAssistSmart } from '@/hooks/useLiveAssistSmart';
 import { itemKey } from '@/lib/liveAssistSync';
 import { shortcutText } from '@/lib/liveAssistShortcut';
 
@@ -70,6 +74,9 @@ export function LiveAssistPanel({ floating = false }: { floating?: boolean }) {
   const shortcutHint = shortcut.status && !shortcut.status.registered
     ? 'Atalho indisponível. Ajuste nas configurações.'
     : `Atalho: ${shortcutText(shortcut.accelerator)}`;
+  const { alerts, usage, dismissAlert, clearAlerts } = useLiveAssistSmart(status.recording);
+  const cloud = Boolean(contextSummary?.localOnlyBlocked) || Boolean(usage?.paid);
+  const active = status.recording && settings.enabled;
   const itemKeys = new Set(items.map(itemKey));
   const hasUnpinned = items.some((item) => !item.pinned);
 
@@ -108,6 +115,7 @@ export function LiveAssistPanel({ floating = false }: { floating?: boolean }) {
             </span>
           )}
           {status.busy && <span className="text-gray-500">Preparando sugestões…</span>}
+          {active && <UsageBadge usage={usage} />}
         </div>
         {status.note && <p className="mt-2 text-xs text-amber-700">{status.note}</p>}
         <div className="mt-3"><RecursosBar /></div>
@@ -132,6 +140,8 @@ export function LiveAssistPanel({ floating = false }: { floating?: boolean }) {
         {!status.recording && (
           <p className="text-sm text-gray-500">Comece uma gravação para receber sugestões.</p>
         )}
+        {active && <RecapCard disabled={false} paid={cloud} />}
+        <SmartAlerts alerts={alerts} onDismiss={dismissAlert} onClear={clearAlerts} canAnswer={active} />
         {SECTIONS.map((section) => {
           const sectionList = sectionItems(items, section.id);
           // Still being written by the model; hidden once the same text arrives as a final item.

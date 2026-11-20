@@ -22,7 +22,9 @@ import { BetaSettings } from '@/components/BetaSettings';
 import { LiveAssistSettings } from '@/components/LiveAssist/LiveAssistSettings';
 import { RecursosSettings } from '@/components/Recursos/RecursosBar';
 import { OrganizationSettings } from '@/components/Organize/OrganizationSettings';
+import { AutopilotSettings } from '@/components/Autopilot/AutopilotSettings';
 import { ModelAdvisorCard } from '@/components/ModelAdvisor';
+import { JevSettings } from '@/components/Jev';
 import { About } from '@/components/About';
 import { useConfig } from '@/contexts/ConfigContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -151,6 +153,7 @@ export default function SettingsPage() {
             <TabsContent value="summaryModels" className="mt-0">
               <ModelAdvisorCard roles={['assistant']} />
               <SummaryModelSettings />
+              <AutopilotSettings />
             </TabsContent>
             <TabsContent value="organization" className="mt-0">
               <OrganizationSettings />
@@ -161,6 +164,7 @@ export default function SettingsPage() {
             </TabsContent>
             <TabsContent value="beta" className="mt-0">
               <BetaSettings />
+              <JevSettings />
             </TabsContent>
             <TabsContent value="about" className="mt-0">
               <div className="rounded-xl border bg-card p-5">

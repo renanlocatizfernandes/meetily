@@ -39,6 +39,7 @@ pub(crate) use perf_trace;
 pub mod analytics;
 pub mod assist_plus;
 pub mod auto_record;
+pub mod autopilot;
 pub mod live_assist;
 pub mod model_advisor;
 pub mod speakers;
@@ -51,10 +52,12 @@ pub mod doodle;
 pub mod notifications;
 pub mod ollama;
 pub mod onboarding;
+pub mod ask;
 pub mod organize;
 pub mod openai;
 pub mod anthropic;
 pub mod groq;
+pub mod jev;
 pub mod openrouter;
 pub mod parakeet_engine;
 pub mod recording_marker;
@@ -851,6 +854,9 @@ pub fn run() {
             ollama::get_ollama_model_context,
             openai::openai::get_openai_models,
             anthropic::anthropic::get_anthropic_models,
+            anthropic::connection::test_llm_provider_connection,
+            summary::llm_client::set_llm_fallback_chain,
+            summary::llm_client::set_llm_reasoning_effort,
             groq::groq::get_groq_models,
             api::api_get_meetings,
             api::api_search_transcripts,
@@ -893,6 +899,8 @@ pub fn run() {
             summary::template_commands::api_list_templates,
             summary::template_commands::api_get_template_details,
             summary::template_commands::api_validate_template,
+            summary::template_commands::api_detect_meeting_template,
+            speakers::suggest::api_suggest_speaker_names,
             // Built-in AI commands
             summary::summary_engine::commands::builtin_ai_list_models,
             summary::summary_engine::commands::builtin_ai_get_model_info,
@@ -917,6 +925,11 @@ pub fn run() {
             live_assist::commands::get_live_assist_context_settings,
             live_assist::commands::save_live_assist_context_settings,
             live_assist::commands::get_live_assist_context,
+            live_assist::commands::get_live_assist_smart_settings,
+            live_assist::commands::save_live_assist_smart_settings,
+            live_assist::commands::live_assist_recap,
+            live_assist::commands::live_assist_suggest_answer,
+            live_assist::commands::get_live_assist_usage,
             live_assist::shortcut::get_live_assist_shortcut,
             live_assist::shortcut::set_live_assist_shortcut,
             live_assist::benchmark::benchmark_live_assist_models,
@@ -951,6 +964,12 @@ pub fn run() {
             assist_plus::commands::search_meetings,
             assist_plus::commands::meeting_scoreboard,
             assist_plus::commands::draft_followup,
+            autopilot::commands::get_autopilot_settings,
+            autopilot::commands::save_autopilot_settings,
+            autopilot::commands::get_autopilot_status,
+            autopilot::commands::get_autopilot_result,
+            autopilot::commands::run_autopilot_for_meeting,
+            autopilot::commands::apply_autopilot_suggestion,
             organize::commands::list_meetings_organized,
             organize::commands::organize_meeting,
             organize::commands::update_meeting_classification,
@@ -959,6 +978,13 @@ pub fn run() {
             organize::commands::save_organization_settings,
             organize::commands::organize_all_meetings,
             organize::commands::cancel_organize_all,
+            ask::commands::ask_meetings,
+            ask::commands::ask_status,
+            ask::commands::ask_rebuild_index,
+            // Jev (TypeSafe System One): optional, off by default
+            jev::jev_get_settings,
+            jev::jev_save_settings,
+            jev::jev_test_connection,
             audio::recording_preferences::get_audio_backend_info,
             // Language preference commands
             set_language_preference,

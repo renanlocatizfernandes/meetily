@@ -1,0 +1,37 @@
+{
+  "name": "Conversa 1:1",
+  "description": "Para conversas individuais entre líder e pessoa da equipe: clima, feedback, desenvolvimento e combinados.",
+  "sections": [
+    {
+      "title": "Resumo",
+      "instruction": "Resuma em um parágrafo curto o tom e os principais assuntos da conversa",
+      "format": "paragraph"
+    },
+    {
+      "title": "Como a pessoa está",
+      "instruction": "Descreva o bem-estar, a motivação e as preocupações trazidas, sem inventar nada que não foi dito",
+      "format": "paragraph"
+    },
+    {
+      "title": "Feedbacks",
+      "instruction": "Liste os feedbacks dados e recebidos, indicando quem falou",
+      "format": "list"
+    },
+    {
+      "title": "Desenvolvimento e carreira",
+      "instruction": "Liste interesses, metas, aprendizados e apoios discutidos",
+      "format": "list"
+    },
+    {
+      "title": "Bloqueios e pedidos",
+      "instruction": "Liste obstáculos e o que cada pessoa pediu à outra",
+      "format": "list"
+    },
+    {
+      "title": "Combinados",
+      "instruction": "Liste os próximos passos com responsável e prazo quando citados",
+      "format": "list",
+      "item_format": "| **Responsável** | Tarefa | Prazo |\n| --- | --- | --- |"
+    }
+  ]
+}

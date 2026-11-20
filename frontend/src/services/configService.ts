@@ -113,6 +113,32 @@ export class ConfigService {
       model,
     });
   }
+
+  /**
+   * Test the API key of a cloud provider (no tokens are spent).
+   * @param provider - 'claude' | 'openai' | 'openrouter'
+   */
+  async testProviderConnection(provider: string, apiKey: string | null): Promise<ProviderConnectionResult> {
+    return invoke<ProviderConnectionResult>('test_llm_provider_connection', { provider, apiKey });
+  }
+
+  /** Push the optional fallback chain (empty array = disabled) to the backend. */
+  async setFallbackChain(entries: { provider: string; model: string; apiKey: string }[]): Promise<number> {
+    return invoke<number>('set_llm_fallback_chain', { entries });
+  }
+
+  /** Set the reasoning effort ('auto' sends nothing). */
+  async setReasoningEffort(effort: string): Promise<void> {
+    return invoke<void>('set_llm_reasoning_effort', { effort });
+  }
+}
+
+export interface ProviderConnectionResult {
+  ok: boolean;
+  provider: string;
+  status: number | null;
+  latency_ms: number;
+  message: string;
 }
 
 // Export singleton instance

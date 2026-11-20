@@ -12,6 +12,7 @@ mod embed;
 mod fbank;
 pub mod neural;
 mod profiles;
+pub mod suggest;
 
 pub use alias::{clear_aliases, rename};
 pub use book::{Assignment, Channel, SpeakerBook};

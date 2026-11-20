@@ -1,0 +1,42 @@
+{
+  "name": "Reunião comercial",
+  "description": "Para conversas com clientes e prospects: necessidades, objeções, proposta e próximos passos.",
+  "sections": [
+    {
+      "title": "Resumo",
+      "instruction": "Resuma em um parágrafo o contexto da conversa e o resultado",
+      "format": "paragraph"
+    },
+    {
+      "title": "Perfil e contexto do cliente",
+      "instruction": "Liste quem é o cliente, a situação atual e as soluções que usa hoje",
+      "format": "list"
+    },
+    {
+      "title": "Necessidades e dores",
+      "instruction": "Liste as necessidades, dores e objetivos expressos pelo cliente",
+      "format": "list"
+    },
+    {
+      "title": "Objeções",
+      "instruction": "Liste as objeções levantadas e como foram respondidas",
+      "format": "list"
+    },
+    {
+      "title": "Proposta e valores",
+      "instruction": "Registre produtos, preços, condições e prazos discutidos",
+      "format": "list"
+    },
+    {
+      "title": "Decisores e prazos",
+      "instruction": "Liste quem decide, critérios de decisão e datas importantes",
+      "format": "list"
+    },
+    {
+      "title": "Próximos passos",
+      "instruction": "Liste as ações combinadas com responsável e prazo",
+      "format": "list",
+      "item_format": "| **Responsável** | Tarefa | Prazo |\n| --- | --- | --- |"
+    }
+  ]
+}

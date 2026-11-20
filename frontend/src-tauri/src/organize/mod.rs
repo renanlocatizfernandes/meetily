@@ -15,9 +15,13 @@ mod text;
 mod title;
 
 pub use model::{MeetingFacets, MeetingOrg, OrganizationSettings, OrganizeAllResult};
+pub(crate) use service::complete_text;
 pub use service::{schedule_auto_organize, AutoTrigger};
 
 // Read-only helpers reused by the live assist context (same matching rules).
 pub(crate) use classify::find_known_client_in_text;
-pub(crate) use store::{load_settings as load_organization_settings, summary_markdown_from_result};
+pub(crate) use store::{
+    list_meetings as list_organized_meetings, load_settings as load_organization_settings,
+    summary_markdown_from_result,
+};
 pub(crate) use text::fold;

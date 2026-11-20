@@ -10,6 +10,7 @@ import { ShortcutCard } from '@/components/LiveAssist/ShortcutCard';
 import { LatencyBenchmarkCard } from '@/components/LiveAssist/LatencyBenchmarkCard';
 import { VoiceModelCard } from '@/components/VoiceModel/VoiceModelCard';
 import { ContextProfileCard } from '@/components/LiveAssist/ContextProfileCard';
+import { SmartAssistCard } from '@/components/LiveAssist/SmartAssistCard';
 
 const CLOUD_PROVIDERS = new Set(['openai', 'claude', 'groq', 'openrouter', 'custom-openai']);
 
@@ -140,6 +141,7 @@ export function LiveAssistSettings() {
       </button>
     </div>
     <ContextProfileCard />
+    <SmartAssistCard />
     <ShortcutCard />
     <LatencyBenchmarkCard
       currentModel={settings.model}

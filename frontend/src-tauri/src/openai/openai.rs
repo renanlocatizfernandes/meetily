@@ -77,11 +77,17 @@ fn is_chat_model(model_id: &str) -> bool {
     let id = model_id.to_lowercase();
     // Include gpt-*, o1-*, o3-*, o4-* models
     // Exclude embedding, tts, whisper, dall-e, babbage, davinci (non-chat models)
-    (id.starts_with("gpt-")
-        || id.starts_with("o1-")
-        || id.starts_with("o3-")
-        || id.starts_with("o4-")
-        || id.starts_with("chatgpt-"))
+    // Reasoning models are "o<digit>" (o1, o3-mini, o4-mini, o5...), with or
+    // without a suffix, so new generations show up without code changes.
+    let is_o_series = {
+        let b = id.as_bytes();
+        b.len() > 1 && b[0] == b'o' && b[1].is_ascii_digit()
+    };
+    (id.starts_with("gpt-") || is_o_series || id.starts_with("chatgpt-"))
+        && !id.contains("image")
+        && !id.contains("transcribe")
+        && !id.contains("moderation")
+        && !id.contains("search-preview")
         && !id.contains("embedding")
         && !id.contains("tts")
         && !id.contains("whisper")
@@ -101,7 +107,13 @@ fn is_chat_model(model_id: &str) -> bool {
 /// # Returns
 /// Vector of available models, or fallback models on error
 #[command]
-pub async fn get_openai_models(api_key: Option<String>) -> Result<Vec<OpenAIModel>, String> {
+pub async fn get_openai_models(
+    api_key: Option<String>,
+    force_refresh: Option<bool>,
+) -> Result<Vec<OpenAIModel>, String> {
+    if force_refresh.unwrap_or(false) {
+        clear_cache();
+    }
     // Return fallback if no API key provided
     let api_key = match api_key {
         Some(key) if !key.trim().is_empty() => key.trim().to_string(),
@@ -190,5 +202,28 @@ pub fn clear_cache() {
     if let Ok(mut cache) = MODELS_CACHE.write() {
         *cache = None;
         log::info!("OpenAI models cache cleared");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_chat_model;
+
+    #[test]
+    fn keeps_chat_and_reasoning_models_only() {
+        for ok in ["gpt-5", "gpt-4o-mini", "o3", "o4-mini", "o5-pro", "chatgpt-4o-latest"] {
+            assert!(is_chat_model(ok), "{ok}");
+        }
+        for bad in [
+            "text-embedding-3-large",
+            "whisper-1",
+            "gpt-image-1",
+            "gpt-4o-transcribe",
+            "gpt-4o-realtime-preview",
+            "omni-moderation-latest",
+            "dall-e-3",
+        ] {
+            assert!(!is_chat_model(bad), "{bad}");
+        }
     }
 }
