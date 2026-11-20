@@ -81,6 +81,11 @@ impl InFlightGate {
         }
     }
 
+    /// True when `request` with this gap would start a call now. Changes nothing.
+    pub fn would_accept(&self, now: Instant, gap: Duration) -> bool {
+        self.last_accept.map_or(true, |last| now.saturating_duration_since(last) >= gap)
+    }
+
     pub fn is_current(&self, generation: u64) -> bool {
         self.generation == generation && generation != 0
     }

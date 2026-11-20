@@ -11,6 +11,7 @@ mod entities;
 mod lookup;
 pub mod privacy;
 mod scoreboard;
+mod signals;
 mod search;
 mod toggles;
 mod translate;
@@ -22,6 +23,7 @@ pub use commands::{
 pub use toggles::{load, load_effective, FeatureToggles};
 
 pub use commitments::detect_commitments;
+pub use signals::{detect_signals, Signal};
 pub use entities::unknown_terms;
 pub use lookup::{contexto_line, LookupHit};
 pub use translate::should_translate;

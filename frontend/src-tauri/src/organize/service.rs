@@ -225,6 +225,21 @@ async fn ask_model<R: Runtime>(
     user_prompt: &str,
     cancel: Option<&CancellationToken>,
 ) -> Result<String, String> {
+    complete_text(app, pool, SYSTEM_PROMPT, user_prompt, LLM_TIMEOUT, cancel)
+        .await
+        .map(|completion| completion.0)
+}
+
+/// Runs one prompt on the provider configured for summaries (same routing as
+/// the classifier). Returns the text and whether it left this machine.
+pub(crate) async fn complete_text<R: Runtime>(
+    app: &AppHandle<R>,
+    pool: &SqlitePool,
+    system_prompt: &str,
+    user_prompt: &str,
+    timeout: Duration,
+    cancel: Option<&CancellationToken>,
+) -> Result<(String, bool), String> {
     let hint = crate::live_assist::load_summary_hint(pool).await;
     let provider = hint.provider.trim().to_ascii_lowercase();
     let uses_summary_model = matches!(
@@ -250,7 +265,7 @@ async fn ask_model<R: Runtime>(
         &target.provider,
         &target.model,
         &target.api_key,
-        SYSTEM_PROMPT,
+        system_prompt,
         user_prompt,
         target.ollama_endpoint.as_deref(),
         target.custom_openai_endpoint.as_deref(),
@@ -260,8 +275,8 @@ async fn ask_model<R: Runtime>(
         app_data.as_ref(),
         cancel,
     );
-    match tokio::time::timeout(LLM_TIMEOUT, request).await {
-        Ok(Ok(completion)) => Ok(completion.content),
+    match tokio::time::timeout(timeout, request).await {
+        Ok(Ok(completion)) => Ok((completion.content, target.leaves_machine)),
         Ok(Err(error)) => Err(error),
         Err(_) => Err("tempo esgotado".to_string()),
     }

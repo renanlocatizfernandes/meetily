@@ -1,0 +1,41 @@
+{
+  "name": "Entrevista de seleção",
+  "description": "Para entrevistas de emprego: perfil, experiências, competências observadas e pontos de atenção.",
+  "sections": [
+    {
+      "title": "Resumo da entrevista",
+      "instruction": "Resuma em um parágrafo o perfil da pessoa entrevistada e a vaga discutida",
+      "format": "paragraph"
+    },
+    {
+      "title": "Experiência relevante",
+      "instruction": "Liste experiências, projetos e resultados citados pela pessoa",
+      "format": "list"
+    },
+    {
+      "title": "Competências observadas",
+      "instruction": "Liste competências técnicas e comportamentais demonstradas, com o trecho que as sustenta",
+      "format": "list"
+    },
+    {
+      "title": "Pontos de atenção",
+      "instruction": "Liste dúvidas, lacunas ou inconsistências observadas, de forma factual",
+      "format": "list"
+    },
+    {
+      "title": "Expectativas",
+      "instruction": "Registre pretensão, disponibilidade, modelo de trabalho e motivações mencionados",
+      "format": "list"
+    },
+    {
+      "title": "Perguntas da pessoa",
+      "instruction": "Liste as perguntas feitas pela pessoa entrevistada e as respostas dadas",
+      "format": "list"
+    },
+    {
+      "title": "Próximos passos",
+      "instruction": "Liste as etapas seguintes do processo e quem deve agir",
+      "format": "list"
+    }
+  ]
+}

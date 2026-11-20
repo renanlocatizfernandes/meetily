@@ -4,7 +4,69 @@ use crate::state::AppState;
 
 use super::context::{ContextSettings, ContextSummary};
 use super::context_store;
+use super::recap::{AnswerResult, RecapResult};
 use super::settings_store::{self, LiveAssistSettings};
+use super::smart_settings::{self, SmartSettings};
+use super::usage::UsageSnapshot;
+
+/// Switches of the proactive part (alerts, economy mode).
+/// JS: `invoke('get_live_assist_smart_settings')`
+#[tauri::command]
+pub async fn get_live_assist_smart_settings<R: Runtime>(app: AppHandle<R>) -> Result<SmartSettings, String> {
+    let pool = app
+        .try_state::<AppState>()
+        .ok_or_else(|| "Banco de dados indisponível".to_string())?
+        .db_manager
+        .pool()
+        .clone();
+    smart_settings::load_smart_settings(&pool)
+        .await
+        .map_err(|_| "Não foi possível ler as configurações da ajuda proativa.".to_string())
+}
+
+/// JS: `invoke('save_live_assist_smart_settings', { settings })`
+#[tauri::command]
+pub async fn save_live_assist_smart_settings<R: Runtime>(
+    app: AppHandle<R>,
+    settings: SmartSettings,
+) -> Result<SmartSettings, String> {
+    let pool = app
+        .try_state::<AppState>()
+        .ok_or_else(|| "Banco de dados indisponível".to_string())?
+        .db_manager
+        .pool()
+        .clone();
+    let settings = settings.normalized();
+    smart_settings::save_smart_settings(&pool, &settings)
+        .await
+        .map_err(|_| "Não foi possível salvar as configurações da ajuda proativa.".to_string())?;
+    Ok(settings)
+}
+
+/// "O que eu perdi?": summary of the last `minutes` of the recording in progress.
+/// Calls the configured model once; with a cloud provider that spends tokens.
+/// JS: `invoke('live_assist_recap', { minutes: 5 })`
+#[tauri::command]
+pub async fn live_assist_recap<R: Runtime>(app: AppHandle<R>, minutes: u32) -> Result<RecapResult, String> {
+    super::service::run_recap(&app, minutes).await
+}
+
+/// Writes an answer to a question the other side asked. Calls the model once.
+/// JS: `invoke('live_assist_suggest_answer', { question })`
+#[tauri::command]
+pub async fn live_assist_suggest_answer<R: Runtime>(
+    app: AppHandle<R>,
+    question: String,
+) -> Result<AnswerResult, String> {
+    super::service::suggest_answer(&app, &question).await
+}
+
+/// Estimated consumption of the recording in progress; `null` when not recording.
+/// The same payload is emitted as `live-assist-usage` after every model call.
+#[tauri::command]
+pub async fn get_live_assist_usage() -> Result<Option<UsageSnapshot>, String> {
+    Ok(super::service::current_usage())
+}
 
 #[tauri::command]
 pub async fn get_live_assist_settings<R: Runtime>(

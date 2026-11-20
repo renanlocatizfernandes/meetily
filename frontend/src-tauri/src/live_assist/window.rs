@@ -34,6 +34,27 @@ impl TranscriptWindow {
         self.segments.iter()
     }
 
+    /// Moves the oldest recent pieces into the earlier summary until the recent
+    /// text fits `max_chars`. Used by economy mode to send less.
+    pub fn limit_recent_chars(&mut self, max_chars: usize) {
+        let mut total: usize = self.segments.iter().map(|piece| piece.text.chars().count()).sum();
+        while total > max_chars && self.segments.len() > 1 {
+            let old = self.segments.pop_front().expect("front exists");
+            total = total.saturating_sub(old.text.chars().count());
+            self.earlier.push_str(&format!("[{}] {}\n", old.source, old.text.trim()));
+        }
+        self.trim_earlier();
+    }
+
+    fn trim_earlier(&mut self) {
+        if self.earlier.chars().count() > EARLIER_CHAR_LIMIT {
+            let chars: Vec<char> = self.earlier.chars().collect();
+            let start = chars.len() - EARLIER_CHAR_LIMIT;
+            let tail: String = chars[start..].iter().collect();
+            self.earlier = format!("Resumo anterior: {tail}");
+        }
+    }
+
     fn evict(&mut self) {
         let Some(latest) = self.segments.back().map(|piece| piece.at) else {
             return;
@@ -47,12 +68,7 @@ impl TranscriptWindow {
             self.earlier
                 .push_str(&format!("[{}] {}\n", old.source, old.text.trim()));
         }
-        if self.earlier.chars().count() > EARLIER_CHAR_LIMIT {
-            let chars: Vec<char> = self.earlier.chars().collect();
-            let start = chars.len() - EARLIER_CHAR_LIMIT;
-            let tail: String = chars[start..].iter().collect();
-            self.earlier = format!("Resumo anterior: {tail}");
-        }
+        self.trim_earlier();
     }
 }
 
@@ -79,6 +95,20 @@ mod tests {
         assert_eq!(recent, vec![70.0, 80.0]);
         assert!(window.earlier_summary().contains("Abertura da reunião"));
         assert!(window.earlier_summary().contains("[mic]"));
+    }
+
+    #[test]
+    fn limiting_recent_text_keeps_the_newest_piece_and_rolls_the_rest() {
+        let mut window = TranscriptWindow::default();
+        for (index, word) in ["um", "dois", "tres"].iter().enumerate() {
+            window.push(piece(index as f64, "system", &format!("{word} {}", "texto ".repeat(20))));
+        }
+        window.limit_recent_chars(150);
+        assert_eq!(window.recent().count(), 1);
+        assert!(window.earlier_summary().contains("um texto"));
+        // A single oversized piece is never dropped.
+        window.limit_recent_chars(1);
+        assert_eq!(window.recent().count(), 1);
     }
 
     #[test]

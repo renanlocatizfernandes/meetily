@@ -15,6 +15,8 @@ import { ModelConfig } from '@/components/ModelSettingsModal';
 import { useMeetingData } from '@/hooks/meeting-details/useMeetingData';
 import { useSummaryGeneration } from '@/hooks/meeting-details/useSummaryGeneration';
 import { useTemplates } from '@/hooks/meeting-details/useTemplates';
+import { useSpeakerSuggestions } from '@/hooks/meeting-details/useSpeakerSuggestions';
+import { SpeakerSuggestions } from '@/components/MeetingDetails/SpeakerSuggestions';
 import { useCopyOperations } from '@/hooks/meeting-details/useCopyOperations';
 import { useMeetingOperations } from '@/hooks/meeting-details/useMeetingOperations';
 import { useConfig } from '@/contexts/ConfigContext';
@@ -31,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { MeetingChips } from '@/components/Organize/MeetingChips';
+import { AutopilotPanel } from '@/components/Autopilot/AutopilotPanel';
 import { MeetingMenuItems, useMeetingActions } from '@/components/Organize/MeetingActions';
 import { formatDuration, formatMeetingWhen, plainMeetingOrg } from '@/lib/organize';
 
@@ -92,7 +95,17 @@ export default function PageContent({
 
   // Custom hooks
   const meetingData = useMeetingData({ meeting, summaryData, onMeetingUpdated });
-  const templates = useTemplates();
+  const templates = useTemplates({ meetingId: meeting.id, transcripts: meetingData.transcripts });
+
+  const renameSpeaker = async (speakerKey: string, displayName: string) => {
+    await invoke('rename_speaker', {
+      meetingId: meeting.id,
+      speakerKey,
+      displayName,
+    });
+    await onRefetchTranscripts?.();
+  };
+  const speakerSuggestions = useSpeakerSuggestions(meeting.id, meetingData.transcripts.length, renameSpeaker);
 
   // Callback to register the modal open function
   const handleRegisterModalOpen = (openFn: () => void) => {
@@ -280,6 +293,13 @@ export default function PageContent({
         }
       />
       {meetingDialogs}
+      <AutopilotPanel meetingId={meeting.id} onMeetingUpdated={onMeetingUpdated} />
+      <SpeakerSuggestions
+        suggestions={speakerSuggestions.suggestions}
+        onConfirm={speakerSuggestions.confirm}
+        onDismiss={speakerSuggestions.dismiss}
+        onDismissAll={speakerSuggestions.dismissAll}
+      />
       <div className="flex flex-1 min-w-0 overflow-hidden">
         <MeetingDetailsSplitView
           activeTab={activeTab}
@@ -306,14 +326,7 @@ export default function PageContent({
               meetingId={meeting.id}
               meetingFolderPath={meeting.folder_path}
               onRefetchTranscripts={onRefetchTranscripts}
-              onRenameSpeaker={async (speakerKey, displayName) => {
-                await invoke('rename_speaker', {
-                  meetingId: meeting.id,
-                  speakerKey,
-                  displayName,
-                });
-                await onRefetchTranscripts?.();
-              }}
+              onRenameSpeaker={renameSpeaker}
             />
           }
           summary={
@@ -343,6 +356,8 @@ export default function PageContent({
               availableTemplates={templates.availableTemplates}
               selectedTemplate={templates.selectedTemplate}
               onTemplateSelect={templates.handleTemplateSelection}
+              autoTemplate={templates.autoTemplate}
+              onAutoTemplateChange={templates.setAutoTemplate}
               isModelConfigLoading={isModelConfigLoading}
               onOpenModelSettings={handleRegisterModalOpen}
             />

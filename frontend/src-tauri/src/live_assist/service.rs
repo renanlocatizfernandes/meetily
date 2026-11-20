@@ -26,7 +26,17 @@ use super::parse::parse_assist_json;
 use super::partial::{extract_partial_items, section_for_kind, PartialItem};
 use super::prompt::{system_prompt, user_prompt};
 use super::settings_store::{load_settings, LiveAssistSettings};
-use super::similarity::ShownSuggestions;
+use super::contradiction::find_divergence;
+use super::recap::{
+    answer_system_prompt, build_answer_prompt, build_recap_prompt, clamp_minutes, parse_bullets, AnswerResult,
+    HistoryLine, RecapResult, TalkHistory,
+};
+use super::similarity::{too_similar, ShownSuggestions};
+use super::smart_settings::{load_smart_settings, SmartSettings};
+use super::usage::{
+    economy_enabled, economy_gap, economy_starts_immediately, estimate_tokens, UsageMeter, UsageSnapshot,
+    ECONOMY_GROUP_GAP, ECONOMY_MAX_RECENT_CHARS, ECONOMY_QUESTION_GAP,
+};
 use super::stream::{stream_ollama_chat, StreamError, StreamLimits};
 use super::target::{resolve_target, LlmTarget, SummaryHint};
 use super::trigger::{classify_segment, PauseWatch, TriggerKind, PAUSE_THRESHOLD};
@@ -72,9 +82,82 @@ struct SessionState {
     heard: String,
     /// False when the live model is a cloud service.
     extras_allowed: bool,
+    smart: SmartSettings,
+    smart_loaded_at: Option<Instant>,
+    /// Longer than `window`: feeds "O que eu perdi?" and the suggested answer.
+    history: TalkHistory,
+    usage: UsageMeter,
+    /// Alert texts already shown, to keep the same one from repeating.
+    alerts_shown: Vec<String>,
+    /// Segments heard since the last model call started (economy mode groups them).
+    unsent: usize,
+    last_auto_answer: Option<Instant>,
 }
 
 impl SessionState {
+    /// Economy mode as it applies now. Before the provider is known the
+    /// context task has not run yet and the model counts as local.
+    fn economy_now(&self) -> bool {
+        economy_enabled(&self.smart.economy, !self.extras_allowed)
+    }
+
+    fn usage_snapshot(&self) -> UsageSnapshot {
+        self.usage.snapshot(!self.extras_allowed, self.economy_now())
+    }
+
+    /// True when this alert is new; remembers it.
+    fn note_alert(&mut self, kind: &str, text: &str) -> bool {
+        let tagged = format!("{kind}: {text}");
+        if self.alerts_shown.iter().any(|known| too_similar(known, &tagged)) {
+            return false;
+        }
+        self.alerts_shown.push(tagged);
+        if self.alerts_shown.len() > 30 {
+            self.alerts_shown.remove(0);
+        }
+        true
+    }
+
+    /// Proactive alerts for one final segment. Local text work only.
+    fn collect_alerts(&mut self, channel: &str, source: &str, text: &str) -> Vec<SmartAlert> {
+        let from_other = channel == "system";
+        let speaker = (source != "mic" && source != "system").then(|| source.to_string());
+        let mut out = Vec::new();
+        for signal in assist_plus::detect_signals(text, from_other) {
+            let enabled = match signal.kind {
+                "pergunta" => self.smart.question_alerts,
+                "decisao" => self.smart.decision_alerts,
+                "tarefa" => self.smart.task_alerts,
+                _ => false,
+            };
+            if !enabled || !self.note_alert(signal.kind, &signal.text) {
+                continue;
+            }
+            out.push(SmartAlert {
+                id: Uuid::new_v4().to_string(),
+                kind: signal.kind,
+                text: signal.text,
+                speaker: speaker.clone(),
+                detail: None,
+            });
+        }
+        if self.smart.contradiction_alerts && !self.context.notes.is_empty() {
+            if let Some(found) = find_divergence(text, &self.context.notes) {
+                let sentence: String = text.trim().chars().take(180).collect();
+                if self.note_alert("divergencia", &sentence) {
+                    out.push(SmartAlert {
+                        id: Uuid::new_v4().to_string(),
+                        kind: "divergencia",
+                        text: sentence,
+                        speaker: speaker.clone(),
+                        detail: Some(format!("Na {}: {}", found.origin, found.remembered)),
+                    });
+                }
+            }
+        }
+        out
+    }
+
     /// Returns true when the label is new.
     fn note_speaker(&mut self, label: &str) -> bool {
         if label == "mic" || label == "system" || self.speakers.iter().any(|known| known == label) {
@@ -98,6 +181,7 @@ impl SessionState {
 }
 
 struct Session {
+    state: Arc<Mutex<SessionState>>,
     cancel: CancellationToken,
     listener_id: tauri::EventId,
     pause_task: JoinHandle<()>,
@@ -105,6 +189,26 @@ struct Session {
 }
 
 static SESSION: Mutex<Option<Session>> = Mutex::new(None);
+/// Consumption of the recording in progress, for a panel that opens late.
+static LAST_USAGE: Mutex<Option<UsageSnapshot>> = Mutex::new(None);
+/// How long the settings of the proactive part are reused before the database is read again.
+const SMART_SETTINGS_TTL: Duration = Duration::from_secs(2);
+/// Whole-call limit for "O que eu perdi?" and "Sugerir resposta": the owner asked and waits.
+const ON_DEMAND_TIMEOUT: Duration = Duration::from_secs(40);
+
+/// Proactive alert, emitted as `live-assist-smart-alert`. The text is a
+/// sentence of the transcript; the panel shows it, nothing is stored.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SmartAlert {
+    id: String,
+    /// "pergunta", "decisao", "tarefa" or "divergencia".
+    kind: &'static str,
+    text: String,
+    speaker: Option<String>,
+    /// For "divergencia": what the earlier meeting said, with its origin.
+    detail: Option<String>,
+}
 
 #[derive(Clone, Serialize)]
 struct AssistItem {
@@ -282,7 +386,17 @@ pub fn on_recording_started<R: Runtime>(app: AppHandle<R>) {
         speakers: Vec::new(),
         heard: String::new(),
         extras_allowed: true,
+        smart: SmartSettings::default(),
+        smart_loaded_at: None,
+        history: TalkHistory::default(),
+        usage: UsageMeter::default(),
+        alerts_shown: Vec::new(),
+        unsent: 0,
+        last_auto_answer: None,
     }));
+    if let Ok(mut slot) = LAST_USAGE.lock() {
+        *slot = None;
+    }
 
     let app_for_events = app.clone();
     let state_for_events = state.clone();
@@ -323,6 +437,7 @@ pub fn on_recording_started<R: Runtime>(app: AppHandle<R>) {
 
     let context_app = app.clone();
     let context_state = state.clone();
+    let session_state = state.clone();
     let context_cancel = cancel.clone();
     let context_task = tauri::async_runtime::spawn(async move {
         // The typed meeting context is part of what names the client.
@@ -332,6 +447,7 @@ pub fn on_recording_started<R: Runtime>(app: AppHandle<R>) {
 
     if let Ok(mut slot) = SESSION.lock() {
         *slot = Some(Session {
+            state: session_state,
             cancel,
             listener_id,
             pause_task,
@@ -355,6 +471,9 @@ pub fn on_recording_stopped<R: Runtime>(app: &AppHandle<R>) {
     if let Ok(mut slot) = LAST_CONTEXT.lock() {
         *slot = None;
     }
+    if let Ok(mut slot) = LAST_USAGE.lock() {
+        *slot = None;
+    }
     emit_status(app, false, false, false, None);
 }
 
@@ -368,10 +487,19 @@ async fn refresh_settings(pool: &SqlitePool, state: &Mutex<SessionState>) -> boo
     };
     let enabled = settings.enabled;
     let toggles = assist_plus::load_effective(pool).await.unwrap_or_default();
+    let smart_stale = state
+        .lock()
+        .map(|guard| guard.smart_loaded_at.map_or(true, |at| at.elapsed() >= SMART_SETTINGS_TTL))
+        .unwrap_or(false);
+    let smart = if smart_stale { load_smart_settings(pool).await.ok() } else { None };
     if let Ok(mut guard) = state.lock() {
         guard.gate.set_min_gap(frequency_gap(&settings.frequency));
         guard.settings = settings;
         guard.toggles = toggles;
+        if let Some(smart) = smart {
+            guard.smart = smart;
+            guard.smart_loaded_at = Some(Instant::now());
+        }
     }
     enabled
 }
@@ -443,7 +571,7 @@ async fn handle_transcript<R: Runtime>(
         None
     };
 
-    let (job, new_speaker) = {
+    let (job, new_speaker, alerts, auto_answers) = {
         let Ok(mut guard) = state.lock() else {
             return;
         };
@@ -455,6 +583,24 @@ async fn handle_transcript<R: Runtime>(
             source: source.to_string(),
             text: update.text.clone(),
         });
+        guard.history.push(HistoryLine {
+            at: update.audio_end_time,
+            source: source.to_string(),
+            text: update.text.clone(),
+        });
+        guard.unsent += 1;
+        let alerts = guard.collect_alerts(channel, source, &update.text);
+        let mut auto_answers = Vec::new();
+        if guard.smart.auto_answer {
+            for alert in alerts.iter().filter(|alert| alert.kind == "pergunta") {
+                let waited = guard.last_auto_answer.map_or(true, |at| at.elapsed() >= ECONOMY_QUESTION_GAP);
+                if waited {
+                    guard.last_auto_answer = Some(Instant::now());
+                    auto_answers.push(alert.text.clone());
+                    break;
+                }
+            }
+        }
         guard.note_heard(&update.text);
         let new_speaker = guard
             .note_speaker(source)
@@ -464,10 +610,22 @@ async fn handle_transcript<R: Runtime>(
             (Some(kind), Some(hint)) => begin_job(&app, &state, &pool, &mut guard, kind, &hint),
             _ => None,
         };
-        (job, new_speaker)
+        (job, new_speaker, alerts, auto_answers)
     };
     if let Some(summary) = new_speaker {
         publish_context(&app, summary);
+    }
+    for alert in alerts {
+        debug!("Live assist smart alert; kind={}", alert.kind);
+        let _ = app.emit("live-assist-smart-alert", alert);
+    }
+    for question in auto_answers {
+        let (app, pool, state) = (app.clone(), pool.clone(), state.clone());
+        tauri::async_runtime::spawn(async move {
+            if let Err(error) = suggest_answer_inner(&app, &pool, &state, &question).await {
+                debug!("Live assist automatic answer skipped; reason_chars={}", error.chars().count());
+            }
+        });
     }
     spawn_job(job);
 }
@@ -480,13 +638,17 @@ async fn consider_pause<R: Runtime>(
     if !refresh_settings(&pool, &state).await {
         return;
     }
-    let ready = {
+    // Economy mode: no call per pause. What was heard since the last call is
+    // grouped and sent once the group gap has passed.
+    let (ready, economy, flush_due) = {
         let Ok(guard) = state.lock() else {
             return;
         };
-        guard.settings.enabled && !guard.window.is_empty()
+        let economy = guard.economy_now();
+        let flush_due = economy && guard.unsent > 0 && guard.gate.would_accept(Instant::now(), ECONOMY_GROUP_GAP);
+        (guard.settings.enabled && !guard.window.is_empty(), economy, flush_due)
     };
-    if !ready {
+    if !ready || (economy && !flush_due) {
         return;
     }
     let hint = load_hint(&pool).await;
@@ -494,7 +656,7 @@ async fn consider_pause<R: Runtime>(
         let Ok(mut guard) = state.lock() else {
             return;
         };
-        if !guard.pause.take_pause(Instant::now(), PAUSE_THRESHOLD) {
+        if !economy && !guard.pause.take_pause(Instant::now(), PAUSE_THRESHOLD) {
             return;
         }
         begin_job(&app, &state, &pool, &mut guard, TriggerKind::Pause, &hint)
@@ -521,19 +683,32 @@ fn begin_job<R: Runtime>(
             return None;
         }
     };
+    let economy = economy_enabled(&guard.smart.economy, target.leaves_machine);
+    if economy && !economy_starts_immediately(kind) && kind != TriggerKind::Pause {
+        // Sentence ends wait for the group flush (see `consider_pause`).
+        guard.usage.record_grouped();
+        return None;
+    }
+    let gap = if economy { economy_gap(kind) } else { frequency_gap(&guard.settings.frequency) };
+    guard.gate.set_min_gap(gap);
     let RequestDecision::Start {
         token,
         cancelled_previous,
         generation,
     } = guard.gate.request(Instant::now())
     else {
+        if economy {
+            guard.usage.record_grouped();
+        }
         return None;
     };
+    guard.unsent = 0;
     debug!(
-        "Live assist call; trigger={}, local={}, cancelled_previous={}",
+        "Live assist call; trigger={}, local={}, cancelled_previous={}, economy={}",
         describe_trigger(kind),
         !target.leaves_machine,
         cancelled_previous,
+        economy,
     );
     emit_status(app, guard.settings.enabled, true, true, None);
     Some(Job {
@@ -577,7 +752,10 @@ async fn run_job<R: Runtime>(job: Job<R>) {
             guard.speakers.clone(),
         )
     };
-    let (language, context, window, shown, internet, translation, live_context, speakers) = snapshot;
+    let (language, context, mut window, shown, internet, translation, live_context, speakers) = snapshot;
+    if economy_enabled(&job.state.lock().map(|guard| guard.smart.economy.clone()).unwrap_or_default(), target.leaves_machine) {
+        window.limit_recent_chars(ECONOMY_MAX_RECENT_CHARS);
+    }
     // Context selection is in-memory text work on a few cached notes.
     let said_now = format!(
         "{}\n{}",
@@ -664,6 +842,9 @@ async fn run_job<R: Runtime>(job: Job<R>) {
     } else {
         plain_call(&job, &client, &prompt).await
     };
+    let output_chars = result.as_ref().map(|content| content.chars().count()).unwrap_or(0);
+    let input_chars = prompt.chars().count() + system_prompt().chars().count();
+    record_usage(&job.app, &job.state, input_chars, output_chars);
     // Tells the panel to drop the in-progress items of this call. It is sent
     // on every exit of the streaming path, after the final update if any.
     let finish_partial = || {
@@ -860,6 +1041,171 @@ fn publish<R: Runtime>(job: &Job<R>, parsed: super::parse::AssistLists, origins:
         }
     }
     let _ = job.app.emit("live-assist-update", AssistUpdate { items });
+}
+
+fn record_usage<R: Runtime>(app: &AppHandle<R>, state: &Mutex<SessionState>, input_chars: usize, output_chars: usize) {
+    let snapshot = {
+        let Ok(mut guard) = state.lock() else { return };
+        guard.usage.record_call(input_chars, output_chars);
+        guard.usage_snapshot()
+    };
+    publish_usage(app, snapshot);
+}
+
+fn publish_usage<R: Runtime>(app: &AppHandle<R>, snapshot: UsageSnapshot) {
+    if let Ok(mut slot) = LAST_USAGE.lock() {
+        *slot = Some(snapshot.clone());
+    }
+    let _ = app.emit("live-assist-usage", snapshot);
+}
+
+/// Consumption of the recording in progress; `None` when not recording.
+pub(crate) fn current_usage() -> Option<UsageSnapshot> {
+    LAST_USAGE.lock().ok().and_then(|guard| guard.clone())
+}
+
+fn current_session() -> Option<(Arc<Mutex<SessionState>>, CancellationToken)> {
+    SESSION
+        .lock()
+        .ok()
+        .and_then(|slot| slot.as_ref().map(|session| (session.state.clone(), session.cancel.clone())))
+}
+
+fn pool_of<R: Runtime>(app: &AppHandle<R>) -> Result<SqlitePool, String> {
+    app.try_state::<AppState>()
+        .map(|state| state.db_manager.pool().clone())
+        .ok_or_else(|| "Banco de dados indisponível".to_string())
+}
+
+const NO_SESSION: &str = "Comece uma gravação com a ajuda ao vivo ligada para usar isto.";
+
+async fn resolve_live_target(pool: &SqlitePool, state: &Mutex<SessionState>) -> Result<LlmTarget, String> {
+    let model = state.lock().map_err(|_| NO_SESSION.to_string())?.settings.model.clone();
+    resolve_target(&load_hint(pool).await, &model).map_err(|_| "Não foi possível usar o provedor de IA configurado.".to_string())
+}
+
+/// One model call the owner asked for. Plain text answer, long timeout.
+async fn on_demand_call(
+    target: &LlmTarget,
+    system: &str,
+    user: &str,
+    cancel: &CancellationToken,
+) -> Result<String, String> {
+    let client = Client::new();
+    let request = generate_summary(
+        &client,
+        &target.provider,
+        &target.model,
+        &target.api_key,
+        system,
+        user,
+        target.ollama_endpoint.as_deref(),
+        target.custom_openai_endpoint.as_deref(),
+        target.max_tokens,
+        target.temperature,
+        target.top_p,
+        None,
+        Some(cancel),
+    );
+    match tokio::time::timeout(ON_DEMAND_TIMEOUT, request).await {
+        Ok(Ok(completion)) if !completion.content.trim().is_empty() => Ok(completion.content),
+        Ok(Ok(_)) => Err("O modelo não devolveu texto. Tente de novo.".to_string()),
+        Ok(Err(error)) if error.to_ascii_lowercase().contains("cancel") => Err("A gravação terminou antes da resposta.".to_string()),
+        Ok(Err(_)) => Err("Não foi possível falar com o modelo agora.".to_string()),
+        Err(_) => Err("O modelo demorou demais. Tente de novo.".to_string()),
+    }
+}
+
+/// "O que eu perdi?": summary of the last `minutes` of the recording.
+pub(crate) async fn run_recap<R: Runtime>(app: &AppHandle<R>, minutes: u32) -> Result<RecapResult, String> {
+    let (state, cancel) = current_session().ok_or_else(|| NO_SESSION.to_string())?;
+    let pool = pool_of(app)?;
+    let minutes = clamp_minutes(minutes);
+    let target = resolve_live_target(&pool, &state).await?;
+    let prompt = {
+        let guard = state.lock().map_err(|_| NO_SESSION.to_string())?;
+        if !guard.settings.enabled {
+            return Err("Ligue a ajuda ao vivo para usar isto.".to_string());
+        }
+        let economy = economy_enabled(&guard.smart.economy, target.leaves_machine);
+        build_recap_prompt(&guard.history, minutes, &guard.settings.language, economy)
+    }
+    .ok_or_else(|| "Ainda não há fala nesse período.".to_string())?;
+    debug!("Live assist recap; minutes={minutes}, lines={}, local={}", prompt.lines, !target.leaves_machine);
+    let answer = on_demand_call(&target, prompt.system, &prompt.user, &cancel).await?;
+    let bullets = parse_bullets(&answer);
+    record_usage(app, &state, prompt.input_chars, answer.chars().count());
+    Ok(RecapResult {
+        minutes,
+        bullets,
+        input_tokens: estimate_tokens(prompt.input_chars),
+        output_tokens: estimate_tokens(answer.chars().count()),
+        paid: target.leaves_machine,
+    })
+}
+
+/// "Sugerir resposta": an answer to a question of the other side, from the
+/// recent talk and the context in use. The text also goes to the panel as a
+/// `respostas` item.
+pub(crate) async fn suggest_answer<R: Runtime>(app: &AppHandle<R>, question: &str) -> Result<AnswerResult, String> {
+    let (state, _) = current_session().ok_or_else(|| NO_SESSION.to_string())?;
+    let pool = pool_of(app)?;
+    suggest_answer_inner(app, &pool, &state, question).await
+}
+
+async fn suggest_answer_inner<R: Runtime>(
+    app: &AppHandle<R>,
+    pool: &SqlitePool,
+    state: &Arc<Mutex<SessionState>>,
+    question: &str,
+) -> Result<AnswerResult, String> {
+    let cancel = current_session().map(|(_, cancel)| cancel).ok_or_else(|| NO_SESSION.to_string())?;
+    let question: String = question.trim().chars().take(400).collect();
+    if question.is_empty() {
+        return Err("Não há pergunta para responder.".to_string());
+    }
+    let target = resolve_live_target(pool, state).await?;
+    let prompt = {
+        let guard = state.lock().map_err(|_| NO_SESSION.to_string())?;
+        // Same rule as the live call: a cloud model gets no profile or earlier meetings.
+        let rendered = render_context(
+            &guard.context,
+            &guard.speakers,
+            &question,
+            Budget::for_typed_context(guard.settings.meeting_context.chars().count()),
+            !target.leaves_machine,
+        );
+        let mut context = guard.settings.meeting_context.clone();
+        if !rendered.text.trim().is_empty() {
+            context.push_str("\n\n");
+            context.push_str(&rendered.text);
+        }
+        build_answer_prompt(&guard.history, &question, &guard.settings.language, &context)
+    };
+    debug!("Live assist suggested answer; local={}", !target.leaves_machine);
+    let answer = on_demand_call(&target, answer_system_prompt(), &prompt.user, &cancel).await?;
+    let text = answer.trim().to_string();
+    record_usage(app, state, prompt.input_chars, text.chars().count());
+    if let Ok(mut guard) = state.lock() {
+        guard.shown.remember("respostas", &text);
+    }
+    let _ = app.emit(
+        "live-assist-update",
+        AssistUpdate {
+            items: vec![AssistItem {
+                id: Uuid::new_v4().to_string(),
+                section: "respostas".to_string(),
+                text: text.clone(),
+                origin: None,
+            }],
+        },
+    );
+    Ok(AnswerResult {
+        input_tokens: estimate_tokens(prompt.input_chars),
+        output_tokens: estimate_tokens(text.chars().count()),
+        paid: target.leaves_machine,
+        text,
+    })
 }
 
 fn emit_status<R: Runtime>(

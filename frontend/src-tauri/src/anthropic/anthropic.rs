@@ -8,6 +8,9 @@ use tauri::command;
 pub struct AnthropicModel {
     pub id: String,
     pub display_name: Option<String>,
+    /// Context window in tokens, when the API reports it (`max_input_tokens`).
+    #[serde(default)]
+    pub context_length: Option<u64>,
 }
 
 /// API response model from Anthropic
@@ -15,6 +18,8 @@ pub struct AnthropicModel {
 struct AnthropicApiModel {
     id: String,
     display_name: Option<String>,
+    #[serde(default)]
+    max_input_tokens: Option<u64>,
     #[allow(dead_code)]
     created_at: Option<String>,
 }
@@ -39,10 +44,10 @@ const CACHE_TTL_SECS: u64 = 300;
 
 /// Fallback models when API fetch fails (matches frontend hardcoded values)
 const FALLBACK_MODELS: &[(&str, &str)] = &[
-    ("claude-sonnet-4-5-20250929", "Claude 4.5 Sonnet"),
-    ("claude-haiku-4-5-20251001", "Claude 4.5 Haiku"),
-    ("claude-opus-4-1-20250805", "Claude 4.1 Opus"),
-    ("claude-sonnet-4-20250514", "Claude 4 Sonnet"),
+    ("claude-opus-5-5", "Claude Opus 5.5"),
+    ("claude-sonnet-5-5", "Claude Sonnet 5.5"),
+    ("claude-haiku-5-5", "Claude Haiku 5.5"),
+    ("claude-fable-5-2", "Claude Fable 5.2"),
 ];
 
 /// Get fallback models as AnthropicModel vec
@@ -52,8 +57,17 @@ fn get_fallback_models() -> Vec<AnthropicModel> {
         .map(|(id, name)| AnthropicModel {
             id: id.to_string(),
             display_name: Some(name.to_string()),
+            context_length: Some(1_000_000),
         })
         .collect()
+}
+
+/// Newest models first: the API already lists newest first, so keep that
+/// order but make sure the recommended defaults are at the top.
+fn promote_defaults(mut models: Vec<AnthropicModel>) -> Vec<AnthropicModel> {
+    let rank = |id: &str| FALLBACK_MODELS.iter().position(|(d, _)| *d == id);
+    models.sort_by_key(|m| rank(&m.id).unwrap_or(usize::MAX));
+    models
 }
 
 /// Check if model is a chat-capable model
@@ -71,7 +85,13 @@ fn is_chat_model(model_id: &str) -> bool {
 /// # Returns
 /// Vector of available models, or fallback models on error
 #[command]
-pub async fn get_anthropic_models(api_key: Option<String>) -> Result<Vec<AnthropicModel>, String> {
+pub async fn get_anthropic_models(
+    api_key: Option<String>,
+    force_refresh: Option<bool>,
+) -> Result<Vec<AnthropicModel>, String> {
+    if force_refresh.unwrap_or(false) {
+        clear_cache();
+    }
     // Return fallback if no API key provided
     let api_key = match api_key {
         Some(key) if !key.trim().is_empty() => key.trim().to_string(),
@@ -100,7 +120,7 @@ pub async fn get_anthropic_models(api_key: Option<String>) -> Result<Vec<Anthrop
     let client = reqwest::Client::new();
 
     let response = match client
-        .get("https://api.anthropic.com/v1/models")
+        .get("https://api.anthropic.com/v1/models?limit=1000")
         .header("x-api-key", &api_key)
         .header("anthropic-version", "2023-06-01")
         .timeout(Duration::from_secs(5))
@@ -132,15 +152,18 @@ pub async fn get_anthropic_models(api_key: Option<String>) -> Result<Vec<Anthrop
     };
 
     // Filter to only chat models and map to our struct
-    let models: Vec<AnthropicModel> = api_response
-        .data
-        .into_iter()
-        .filter(|m| is_chat_model(&m.id))
-        .map(|m| AnthropicModel {
-            id: m.id,
-            display_name: m.display_name,
-        })
-        .collect();
+    let models: Vec<AnthropicModel> = promote_defaults(
+        api_response
+            .data
+            .into_iter()
+            .filter(|m| is_chat_model(&m.id))
+            .map(|m| AnthropicModel {
+                id: m.id,
+                display_name: m.display_name,
+                context_length: m.max_input_tokens,
+            })
+            .collect(),
+    );
 
     // If no models returned, use fallback
     if models.is_empty() {
@@ -167,5 +190,27 @@ pub fn clear_cache() {
     if let Ok(mut cache) = MODELS_CACHE.write() {
         *cache = None;
         log::info!("Anthropic models cache cleared");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn model(id: &str) -> AnthropicModel {
+        AnthropicModel { id: id.into(), display_name: None, context_length: None }
+    }
+
+    #[test]
+    fn defaults_are_promoted_and_fallback_is_complete() {
+        let models = promote_defaults(vec![
+            model("claude-old"),
+            model("claude-sonnet-5-5"),
+            model("claude-opus-5-5"),
+        ]);
+        assert_eq!(models[0].id, "claude-opus-5-5");
+        assert_eq!(models[1].id, "claude-sonnet-5-5");
+        assert_eq!(models[2].id, "claude-old");
+        assert_eq!(get_fallback_models().len(), 4);
     }
 }

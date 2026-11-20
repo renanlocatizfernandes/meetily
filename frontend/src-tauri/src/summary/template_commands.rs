@@ -123,6 +123,44 @@ pub async fn api_validate_template<R: Runtime>(
     }
 }
 
+/// Suggestion returned by [`api_detect_meeting_template`].
+#[derive(Debug, Serialize)]
+pub struct TemplateSuggestion {
+    pub template_id: String,
+    pub template_name: String,
+    /// 0.0 to 1.0; 0.0 when no type stood out and the standard template is suggested.
+    pub confidence: f32,
+    pub detected: bool,
+}
+
+/// Suggests a summary template from the transcript text, using local keyword
+/// heuristics only (no network, no LLM). The caller decides whether to apply it.
+#[tauri::command]
+pub async fn api_detect_meeting_template<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    text: String,
+) -> Result<TemplateSuggestion, String> {
+    // Scoring walks the whole transcript: keep it off the async workers.
+    tokio::task::spawn_blocking(move || {
+        let detection = templates::detect::detect(&text, |id| templates::get_template(id).is_ok());
+        let template_name = templates::get_template(&detection.template_id)
+            .map(|template| template.name)
+            .unwrap_or_else(|_| detection.template_id.clone());
+        info!(
+            "Template detection: id={} detected={} confidence={:.2}",
+            detection.template_id, detection.detected, detection.confidence
+        );
+        TemplateSuggestion {
+            template_id: detection.template_id,
+            template_name,
+            confidence: detection.confidence,
+            detected: detection.detected,
+        }
+    })
+    .await
+    .map_err(|_| "Não foi possível analisar a transcrição.".to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

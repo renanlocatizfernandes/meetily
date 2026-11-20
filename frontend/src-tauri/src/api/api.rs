@@ -1019,6 +1019,8 @@ pub async fn api_save_transcript<R: Runtime>(
                 &meeting_id,
                 crate::organize::AutoTrigger::TranscriptSaved,
             );
+            // Post-meeting autopilot (no-op while it is off; runs in its own task).
+            crate::autopilot::schedule(&_app, &meeting_id);
             Ok(serde_json::json!({
                 "status": "success",
                 "message": "Transcript saved successfully",

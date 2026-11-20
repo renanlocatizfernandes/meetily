@@ -1,0 +1,36 @@
+{
+  "name": "Consulta ou atendimento",
+  "description": "Para consultas e atendimentos individuais: queixa, relato, orientações e retorno. Trate o conteúdo com sigilo.",
+  "sections": [
+    {
+      "title": "Motivo do atendimento",
+      "instruction": "Resuma em poucas linhas o motivo da consulta segundo a pessoa atendida",
+      "format": "paragraph"
+    },
+    {
+      "title": "Relato",
+      "instruction": "Registre os fatos, sintomas ou situações relatados, usando as palavras da pessoa quando possível",
+      "format": "paragraph"
+    },
+    {
+      "title": "Avaliação e observações",
+      "instruction": "Registre apenas as avaliações e observações ditas pelo profissional, sem criar diagnósticos",
+      "format": "paragraph"
+    },
+    {
+      "title": "Orientações",
+      "instruction": "Liste as orientações, prescrições e recomendações dadas",
+      "format": "list"
+    },
+    {
+      "title": "Dúvidas",
+      "instruction": "Liste as dúvidas levantadas e as respostas dadas",
+      "format": "list"
+    },
+    {
+      "title": "Retorno e encaminhamentos",
+      "instruction": "Liste exames, encaminhamentos e data de retorno, quando citados",
+      "format": "list"
+    }
+  ]
+}

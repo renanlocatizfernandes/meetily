@@ -8,6 +8,16 @@ import { invoke } from '@tauri-apps/api/core';
 import Analytics from '@/lib/analytics';
 import { toast } from 'sonner';
 import { BetaFeatures, BetaFeatureKey, loadBetaFeatures, saveBetaFeatures } from '@/types/betaFeatures';
+import {
+  FallbackChain,
+  ReasoningEffort,
+  EMPTY_FALLBACK_CHAIN,
+  FALLBACK_CHAIN_STORAGE_KEY,
+  REASONING_EFFORT_STORAGE_KEY,
+  buildFallbackPayload,
+  loadFallbackChain,
+  loadReasoningEffort,
+} from '@/lib/llmProviders';
 
 export interface OllamaModel {
   name: string;
@@ -87,6 +97,12 @@ interface ConfigContextType {
   };
   updateProviderApiKey: (provider: string, apiKey: string | null) => void;
 
+  // Optional cloud-LLM extras (both off by default)
+  fallbackChain: FallbackChain;
+  setFallbackChain: (chain: FallbackChain) => void;
+  reasoningEffort: ReasoningEffort;
+  setReasoningEffort: (effort: ReasoningEffort) => void;
+
   // Preference settings (lazy loaded)
   notificationSettings: NotificationSettings | null;
   storageLocations: StorageLocations | null;
@@ -129,6 +145,38 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     openai: null,
     openrouter: null,
   });
+
+  // Optional fallback chain and reasoning effort (persisted locally, no secrets)
+  const [fallbackChain, setFallbackChainState] = useState<FallbackChain>(EMPTY_FALLBACK_CHAIN);
+  const [reasoningEffort, setReasoningEffortState] = useState<ReasoningEffort>('auto');
+
+  useEffect(() => {
+    setFallbackChainState(loadFallbackChain());
+    setReasoningEffortState(loadReasoningEffort());
+  }, []);
+
+  const setFallbackChain = useCallback((chain: FallbackChain) => {
+    setFallbackChainState(chain);
+    try { localStorage.setItem(FALLBACK_CHAIN_STORAGE_KEY, JSON.stringify(chain)); } catch { /* ignore */ }
+  }, []);
+
+  const setReasoningEffort = useCallback((effort: ReasoningEffort) => {
+    setReasoningEffortState(effort);
+    try { localStorage.setItem(REASONING_EFFORT_STORAGE_KEY, effort); } catch { /* ignore */ }
+  }, []);
+
+  // Keep the backend in sync (keys stay in memory there; never logged)
+  useEffect(() => {
+    configService
+      .setFallbackChain(buildFallbackPayload(fallbackChain, providerApiKeys))
+      .catch(err => console.error('[ConfigContext] Failed to sync fallback chain:', err));
+  }, [fallbackChain, providerApiKeys]);
+
+  useEffect(() => {
+    configService
+      .setReasoningEffort(reasoningEffort)
+      .catch(err => console.error('[ConfigContext] Failed to sync reasoning effort:', err));
+  }, [reasoningEffort]);
 
   // Ollama models list and error state
   const [models, setModels] = useState<OllamaModel[]>([]);
@@ -371,7 +419,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   // Calculate model options based on available models
   const modelOptions: Record<ModelConfig['provider'], string[]> = {
     ollama: models.map(model => model.name),
-    claude: ['claude-3-5-sonnet-latest'],
+    claude: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-fable-5-2'],
     groq: ['llama-3.3-70b-versatile'],
     openrouter: [],
     openai: ['gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo'],
@@ -497,6 +545,10 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     toggleIsAutoSummary,
     providerApiKeys,
     updateProviderApiKey,
+    fallbackChain,
+    setFallbackChain,
+    reasoningEffort,
+    setReasoningEffort,
     transcriptModelConfig,
     setTranscriptModelConfig,
     selectedDevices,
@@ -522,6 +574,10 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     toggleIsAutoSummary,
     providerApiKeys,
     updateProviderApiKey,
+    fallbackChain,
+    setFallbackChain,
+    reasoningEffort,
+    setReasoningEffort,
     transcriptModelConfig,
     selectedDevices,
     selectedLanguage,
