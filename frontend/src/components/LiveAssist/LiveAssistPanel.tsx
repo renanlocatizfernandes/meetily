@@ -102,7 +102,7 @@ export function LiveAssistPanel({ floating = false }: { floating?: boolean }) {
             <p className="text-xs text-gray-500">{shortcutHint}</p>
           </div>
           {!floating && (
-            <button type="button" className="rounded p-1 text-gray-500 hover:bg-gray-100" onClick={() => setPanelOpen(false)} title="Recolher">
+            <button type="button" className="rounded p-1 text-gray-500 hover:bg-gray-100" onClick={() => setPanelOpen(false)} title="Recolher" aria-label="Recolher painel">
               <ChevronRight className="h-4 w-4" />
             </button>
           )}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { RecordingControls } from '@/components/RecordingControls';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { usePermissionCheck } from '@/hooks/usePermissionCheck';
@@ -27,6 +27,7 @@ import { useLiveAssist } from '@/contexts/LiveAssistContext';
 import { TopBar } from '@/components/Shell/TopBar';
 import { IconButton } from '@/components/ui/icon-button';
 import { Copy, Languages, SlidersHorizontal } from 'lucide-react';
+import { formatElapsed } from '@/lib/elapsed';
 
 
 // Resting shape of the level bars; while recording they move with a CSS animation.
@@ -117,6 +118,17 @@ export default function Home() {
   }, [checkForRecoverableTranscripts, recordingState.isRecording, status]);
 
   // Watch for recoverable meetings changes and show dialog once per session
+  const recoveryNavTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (recoveryNavTimer.current) clearTimeout(recoveryNavTimer.current);
+  }, []);
+
+  // With nothing left to recover, the dialog may show again in a later session.
+  // (Read from the current list: the recover handler only sees the list from before it ran.)
+  useEffect(() => {
+    if (recoverableMeetings.length === 0) sessionStorage.removeItem('recovery_dialog_shown');
+  }, [recoverableMeetings]);
+
   useEffect(() => {
     // Only show dialog if we have meetings and haven't shown it yet this session
     if (recoverableMeetings.length > 0) {
@@ -141,6 +153,9 @@ export default function Home() {
           action: result.meetingId ? {
             label: 'Ver reunião',
             onClick: () => {
+              // The person chose to go now: drop the automatic navigation below.
+              if (recoveryNavTimer.current) clearTimeout(recoveryNavTimer.current);
+              recoveryNavTimer.current = null;
               router.push(`/meeting-details?id=${result.meetingId}`);
             }
           } : undefined,
@@ -150,14 +165,11 @@ export default function Home() {
         // Refresh sidebar to show the newly recovered meeting
         await refetchMeetings();
 
-        // If no more recoverable meetings, clear session flag so dialog can show again
-        if (recoverableMeetings.length === 0) {
-          sessionStorage.removeItem('recovery_dialog_shown');
-        }
-
         // Auto-navigate after a short delay
         if (result.meetingId) {
-          setTimeout(() => {
+          if (recoveryNavTimer.current) clearTimeout(recoveryNavTimer.current);
+          recoveryNavTimer.current = setTimeout(() => {
+            recoveryNavTimer.current = null;
             router.push(`/meeting-details?id=${result.meetingId}`);
           }, 2000);
         }
@@ -184,8 +196,7 @@ export default function Home() {
   const isProcessingStop = status === RecordingStatus.PROCESSING_TRANSCRIPTS || isProcessing;
 
   const isHelpVisible = recordingState.isRecording && liveAssistSettings.enabled;
-  const elapsedSeconds = Math.max(0, Math.floor(recordingState.activeDuration ?? 0));
-  const elapsedLabel = `${String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')}:${String(elapsedSeconds % 60).padStart(2, '0')}`;
+  const elapsedLabel = formatElapsed(recordingState.activeDuration);
   const hasLiveTitle = recordingState.isRecording && meetingTitle && meetingTitle !== '+ New Call';
 
   return (

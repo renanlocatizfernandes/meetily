@@ -460,7 +460,7 @@ export function useSummaryGeneration({
     toast.error(message);
   }, []);
 
-  const handleGenerateSummary = useCallback(async (customPrompt: string = '') => {
+  const startSummary = useCallback(async (customPrompt: string = '') => {
     if (isModelConfigLoading) {
       toast.info('Carregando a configuração do modelo, aguarde...');
       return;
@@ -517,6 +517,18 @@ export function useSummaryGeneration({
     processSummary,
     showPreflightError,
   ]);
+
+  // The checks above take a moment with the status still idle; a second click must not start another run.
+  const startingRef = useRef(false);
+  const handleGenerateSummary = useCallback(async (customPrompt: string = '') => {
+    if (startingRef.current) return;
+    startingRef.current = true;
+    try {
+      await startSummary(customPrompt);
+    } finally {
+      startingRef.current = false;
+    }
+  }, [startSummary]);
 
   // Public API: Regenerate summary from the current saved transcript
   const handleRegenerateSummary = useCallback(async () => {

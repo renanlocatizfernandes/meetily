@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
@@ -37,15 +37,21 @@ export function AutopilotSettings() {
     };
   }, []);
 
+  // Quick toggles send overlapping saves; only the newest may update the screen.
+  const saveSeq = useRef(0);
+
   const save = async (next: Settings) => {
     const previous = settings;
+    const id = ++saveSeq.current;
     setSettings(next);
     try {
-      setSettings(await saveAutopilotSettings(next));
+      const saved = await saveAutopilotSettings(next);
+      if (id !== saveSeq.current) return;
+      setSettings(saved);
       // O aviso de custo depende do provedor; confere de novo ao ligar.
       if (next.enabled && !previous?.enabled) getAutopilotStatus().then(setStatus);
     } catch {
-      setSettings(previous);
+      if (id === saveSeq.current) setSettings(previous);
       toast.error('Não foi possível salvar o piloto automático');
     }
   };

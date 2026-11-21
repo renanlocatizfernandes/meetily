@@ -53,11 +53,15 @@ export function RecapCard({ disabled, paid }: { disabled: boolean; paid: boolean
       {error && <p className="mt-2 text-xs text-amber-700">{error}</p>}
       {result && (
         <div className="mt-2">
-          <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">
-            {result.bullets.map((bullet, index) => (
-              <li key={index}>{bullet}</li>
-            ))}
-          </ul>
+          {result.bullets.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nada de novo nesse período.</p>
+          ) : (
+            <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">
+              {result.bullets.map((bullet, index) => (
+                <li key={index}>{bullet}</li>
+              ))}
+            </ul>
+          )}
           <p className="mt-1 text-[11px] text-muted-foreground">
             Últimos {result.minutes} min · {recapCostNote(result)}
           </p>

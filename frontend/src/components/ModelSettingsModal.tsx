@@ -685,7 +685,7 @@ export function ModelSettingsModal({
       model: modelConfig.provider === 'custom-openai' ? customOpenAIModel.trim() : modelConfig.model,
     };
     setModelConfig(updatedConfig);
-    console.log('ModelSettingsModal - handleSave - Updated ModelConfig:', updatedConfig);
+    console.log('ModelSettingsModal - handleSave - Updated ModelConfig:', { provider: updatedConfig.provider, model: updatedConfig.model });
 
     // Persist confirmed model choice to per-provider cache
     if (updatedConfig.model) {

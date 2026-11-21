@@ -292,7 +292,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
           const now = Date.now();
           console.log('🎯 MAIN LISTENER: Received transcript update:', {
             sequence_id: update.sequence_id,
-            text: update.text.substring(0, 50) + '...',
+            text_len: update.text.length,
             timestamp: update.timestamp,
             is_partial: update.is_partial,
             received_at: new Date(now).toISOString(),

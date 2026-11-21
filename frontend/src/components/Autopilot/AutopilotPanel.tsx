@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, Copy, Loader2, Plane, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -26,10 +26,10 @@ interface Props {
   onMeetingUpdated?: () => void | Promise<void>;
 }
 
-async function copy(text: string, what: string) {
+async function copy(text: string, done: string) {
   try {
     await navigator.clipboard.writeText(text);
-    toast.success(`${what} copiado`);
+    toast.success(done);
   } catch {
     toast.error('Não foi possível copiar');
   }
@@ -57,9 +57,17 @@ export function AutopilotPanel({ meetingId, onMeetingUpdated }: Props) {
   const [result, setResult] = useState<AutopilotResult | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [applying, setApplying] = useState<'title' | 'tags' | null>(null);
+  // Progress events trigger overlapping loads; only the newest one may update the panel.
+  const loadSeq = useRef(0);
+  // The parent passes a new callback on every render; a ref keeps the listeners stable.
+  const onUpdatedRef = useRef(onMeetingUpdated);
+  onUpdatedRef.current = onMeetingUpdated;
 
   const load = useCallback(async () => {
-    setResult(await getAutopilotResult(meetingId));
+    const id = ++loadSeq.current;
+    const value = await getAutopilotResult(meetingId);
+    if (id === loadSeq.current) setResult(value);
   }, [meetingId]);
 
   useEffect(() => {
@@ -79,7 +87,7 @@ export function AutopilotPanel({ meetingId, onMeetingUpdated }: Props) {
         if (event.meetingId !== meetingId) return;
         setBusy(false);
         void load();
-        void onMeetingUpdated?.();
+        void onUpdatedRef.current?.();
       },
     }).then((fn) => {
       if (active) unlisten = fn;
@@ -89,7 +97,7 @@ export function AutopilotPanel({ meetingId, onMeetingUpdated }: Props) {
       active = false;
       unlisten?.();
     };
-  }, [meetingId, load, onMeetingUpdated]);
+  }, [meetingId, load]);
 
   const rerun = async () => {
     setBusy(true);
@@ -107,13 +115,17 @@ export function AutopilotPanel({ meetingId, onMeetingUpdated }: Props) {
   };
 
   const apply = async (kind: 'title' | 'tags') => {
+    if (applying) return;
+    setApplying(kind);
     try {
       await applyAutopilotSuggestion(meetingId, kind);
       toast.success(kind === 'title' ? 'Título aplicado' : 'Etiquetas adicionadas');
       void load();
-      void onMeetingUpdated?.();
+      void onUpdatedRef.current?.();
     } catch {
       toast.error('Não foi possível aplicar a sugestão');
+    } finally {
+      setApplying(null);
     }
   };
 
@@ -147,7 +159,10 @@ export function AutopilotPanel({ meetingId, onMeetingUpdated }: Props) {
           </span>
         </button>
         {running ? (
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Em andamento" />
+          <span role="status" className="flex items-center">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
+            <span className="sr-only">Em andamento</span>
+          </span>
         ) : (
           <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-muted-foreground" onClick={rerun}>
             <RefreshCw className="h-3 w-3" aria-hidden />
@@ -179,10 +194,10 @@ export function AutopilotPanel({ meetingId, onMeetingUpdated }: Props) {
           )}
 
           {result.tasks.length > 0 && (
-            <Group title="Tarefas" onCopy={() => copy(text.tasks, 'Tarefas')}>
+            <Group title="Tarefas" onCopy={() => copy(text.tasks, 'Tarefas copiadas')}>
               <ul className="space-y-1">
-                {result.tasks.map((task) => (
-                  <li key={task.text} className="flex flex-wrap items-baseline gap-x-2">
+                {result.tasks.map((task, index) => (
+                  <li key={`${index}-${task.text}`} className="flex flex-wrap items-baseline gap-x-2">
                     <span>{task.text}</span>
                     {task.owner && <span className="text-xs text-muted-foreground">· {task.owner}</span>}
                     {task.due && <span className="text-xs text-muted-foreground">· até {task.due}</span>}
@@ -192,19 +207,19 @@ export function AutopilotPanel({ meetingId, onMeetingUpdated }: Props) {
             </Group>
           )}
           {result.decisions.length > 0 && (
-            <Group title="Decisões" onCopy={() => copy(text.decisions, 'Decisões')}>
+            <Group title="Decisões" onCopy={() => copy(text.decisions, 'Decisões copiadas')}>
               <ul className="list-disc space-y-1 pl-5">
-                {result.decisions.map((item) => (
-                  <li key={item}>{item}</li>
+                {result.decisions.map((item, index) => (
+                  <li key={`${index}-${item}`}>{item}</li>
                 ))}
               </ul>
             </Group>
           )}
           {result.pending.length > 0 && (
-            <Group title="Pendências" onCopy={() => copy(text.pending, 'Pendências')}>
+            <Group title="Pendências" onCopy={() => copy(text.pending, 'Pendências copiadas')}>
               <ul className="list-disc space-y-1 pl-5">
-                {result.pending.map((item) => (
-                  <li key={item}>{item}</li>
+                {result.pending.map((item, index) => (
+                  <li key={`${index}-${item}`}>{item}</li>
                 ))}
               </ul>
             </Group>
@@ -218,7 +233,7 @@ export function AutopilotPanel({ meetingId, onMeetingUpdated }: Props) {
                   {result.titleApplied ? (
                     <span className="text-xs text-muted-foreground">aplicado</span>
                   ) : (
-                    <Button variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={() => apply('title')}>
+                    <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={applying !== null} onClick={() => apply('title')}>
                       Usar como título
                     </Button>
                   )}
@@ -226,15 +241,15 @@ export function AutopilotPanel({ meetingId, onMeetingUpdated }: Props) {
               )}
               {result.suggestedTags.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {result.suggestedTags.map((tag) => (
-                    <span key={tag} className="rounded-full border px-2 py-0.5 text-xs">
+                  {result.suggestedTags.map((tag, index) => (
+                    <span key={`${index}-${tag}`} className="rounded-full border px-2 py-0.5 text-xs">
                       {tag}
                     </span>
                   ))}
                   {result.tagsApplied ? (
                     <span className="text-xs text-muted-foreground">adicionadas</span>
                   ) : (
-                    <Button variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={() => apply('tags')}>
+                    <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={applying !== null} onClick={() => apply('tags')}>
                       Adicionar etiquetas
                     </Button>
                   )}
@@ -244,7 +259,7 @@ export function AutopilotPanel({ meetingId, onMeetingUpdated }: Props) {
           )}
 
           {result.emailBody && (
-            <Group title="Rascunho de e-mail (não enviado)" onCopy={() => copy(emailToText(result), 'E-mail')}>
+            <Group title="Rascunho de e-mail (não enviado)" onCopy={() => copy(emailToText(result), 'E-mail copiado')}>
               {result.emailSubject && <p className="font-medium">{result.emailSubject}</p>}
               <pre className="whitespace-pre-wrap rounded-lg border bg-background p-3 font-sans text-sm">{result.emailBody}</pre>
             </Group>

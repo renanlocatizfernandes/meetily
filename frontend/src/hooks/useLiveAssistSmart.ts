@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { listenAll, safeInvoke } from '@/lib/tauriSafe';
 import { SmartAlert, UsageSnapshot, addAlert, parseAlert } from '@/lib/liveAssistSmart';
 
@@ -29,9 +29,12 @@ export function useLiveAssistSmart(recording: boolean) {
     return stop;
   }, []);
 
-  // A new recording starts clean.
+  // A new recording starts clean: no usage and no alerts left from the previous one.
+  const wasRecording = useRef(recording);
   useEffect(() => {
     if (!recording) setUsage(null);
+    if (recording && !wasRecording.current) setAlerts([]);
+    wasRecording.current = recording;
   }, [recording]);
 
   const dismissAlert = useCallback((id: string) => {

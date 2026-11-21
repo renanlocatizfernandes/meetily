@@ -37,14 +37,10 @@ import { SearchDialog } from '@/components/Shell/SearchDialog';
 import { useMeetingActions } from '@/components/Organize/MeetingActions';
 import { GROUP_BY_LABELS, meetingMatchesQuery, type GroupBy, type MeetingOrg } from '@/lib/organize';
 import Logo from '../Logo';
+import { formatElapsed } from '@/lib/elapsed';
 
 const GROUP_BY_OPTIONS: GroupBy[] = ['date', 'client', 'category'];
 
-function formatElapsed(seconds: number | null): string {
-  const total = Math.max(0, Math.floor(seconds ?? 0));
-  const minutes = Math.floor(total / 60);
-  return `${String(minutes).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
-}
 
 interface NavItemProps {
   icon: React.ReactNode;

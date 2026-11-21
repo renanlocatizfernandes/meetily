@@ -1111,9 +1111,22 @@ async fn on_demand_call(
         Ok(Ok(completion)) if !completion.content.trim().is_empty() => Ok(completion.content),
         Ok(Ok(_)) => Err("O modelo não devolveu texto. Tente de novo.".to_string()),
         Ok(Err(error)) if error.to_ascii_lowercase().contains("cancel") => Err("A gravação terminou antes da resposta.".to_string()),
-        Ok(Err(_)) => Err("Não foi possível falar com o modelo agora.".to_string()),
+        Ok(Err(error)) => Err(target
+            .leaves_machine
+            .then(|| provider_explanation(&error))
+            .flatten()
+            .unwrap_or_else(|| "Não foi possível falar com o modelo agora.".to_string())),
         Err(_) => Err("O modelo demorou demais. Tente de novo.".to_string()),
     }
+}
+
+/// The pt-BR explanation a cloud provider failure already carries ("Sem crédito…",
+/// "Chave de API inválida…"), without the HTTP detail or the fallback-chain tail.
+/// `None` for anything else, so raw transport errors never reach the screen.
+fn provider_explanation(error: &str) -> Option<String> {
+    let first = error.split(" | ").next()?;
+    let text = first.split(" (HTTP ").next()?.trim();
+    (first.contains(" (HTTP ") && !text.is_empty()).then(|| text.to_string())
 }
 
 /// "O que eu perdi?": summary of the last `minutes` of the recording.
@@ -1167,6 +1180,9 @@ async fn suggest_answer_inner<R: Runtime>(
     let target = resolve_live_target(pool, state).await?;
     let prompt = {
         let guard = state.lock().map_err(|_| NO_SESSION.to_string())?;
+        if !guard.settings.enabled {
+            return Err("Ligue a ajuda ao vivo para usar isto.".to_string());
+        }
         // Same rule as the live call: a cloud model gets no profile or earlier meetings.
         let rendered = render_context(
             &guard.context,
@@ -1224,4 +1240,24 @@ fn emit_status<R: Runtime>(
             note,
         },
     );
+}
+
+#[cfg(test)]
+mod provider_explanation_tests {
+    use super::provider_explanation;
+
+    #[test]
+    fn keeps_the_friendly_text_of_a_provider_failure() {
+        let error = "Sem crédito ou cota esgotada em Claude. Adicione saldo. (HTTP 402: credit balance is too low) | Alternativa OpenAI falhou: x";
+        assert_eq!(
+            provider_explanation(error).as_deref(),
+            Some("Sem crédito ou cota esgotada em Claude. Adicione saldo.")
+        );
+    }
+
+    #[test]
+    fn hides_raw_transport_errors() {
+        assert_eq!(provider_explanation("Failed to send request: connection refused"), None);
+        assert_eq!(provider_explanation(""), None);
+    }
 }

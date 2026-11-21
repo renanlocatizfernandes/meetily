@@ -24,6 +24,8 @@ export const InlineTitle = React.forwardRef<InlineTitleHandle, InlineTitleProps>
 
     useImperativeHandle(ref, () => ({
       startEditing: () => {
+        // Escape unmounts the input without a blur in WebKit; start each edit clean.
+        cancelledRef.current = false;
         setDraft(value);
         setIsEditing(true);
       },
@@ -83,6 +85,7 @@ export const InlineTitle = React.forwardRef<InlineTitleHandle, InlineTitleProps>
         type="button"
         title="Clique para renomear"
         onClick={() => {
+          cancelledRef.current = false;
           setDraft(value);
           setIsEditing(true);
         }}

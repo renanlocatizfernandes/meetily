@@ -54,7 +54,7 @@ export function EmptyStateSummary({
                 className="gap-2"
               >
                 <Sparkles className="w-4 h-4" />
-                {isGenerating ? 'Gerando...' : error ? 'Retry summary' : 'Gerar resumo'}
+                {isGenerating ? 'Gerando...' : error ? 'Tentar de novo' : 'Gerar resumo'}
               </Button>
             </div>
           </TooltipTrigger>

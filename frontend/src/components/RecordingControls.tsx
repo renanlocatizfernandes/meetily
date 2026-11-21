@@ -250,9 +250,17 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
     };
   }, []);
 
+  // The page passes new callbacks on every render (once a second while recording).
+  // Refs keep the Tauri listeners registered once, so no event lands in a gap.
+  const onRecordingStopRef = useRef(onRecordingStop);
+  onRecordingStopRef.current = onRecordingStop;
+  const onTranscriptionErrorRef = useRef(onTranscriptionError);
+  onTranscriptionErrorRef.current = onTranscriptionError;
+
   useEffect(() => {
     console.log('Setting up recording event listeners');
     let unsubscribes: (() => void)[] = [];
+    let cancelled = false;
 
     const setupListeners = async () => {
       try {
@@ -272,10 +280,8 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
           });
           setIsProcessing(false);
           console.log('Calling onRecordingStop(false) due to transcript error');
-          onRecordingStop(false);
-          if (onTranscriptionError) {
-            onTranscriptionError(errorMessage);
-          }
+          onRecordingStopRef.current(false);
+          onTranscriptionErrorRef.current?.(errorMessage);
         });
 
         // Transcription error listener - handles structured error objects with actionable flag
@@ -297,7 +303,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
 
           if (event.payload.phase === 'active') {
             console.log('Calling onRecordingStop(false) due to active transcription error');
-            onRecordingStop(false);
+            onRecordingStopRef.current(false);
           }
 
           // For actionable errors (like model loading failures), the main page will handle showing the model selector
@@ -318,6 +324,8 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
           transcriptionErrorUnsubscribe,
           speechDetectedUnsubscribe
         ];
+        // Unmounted while the listeners were being registered: remove them now.
+        if (cancelled) unsubscribes.forEach(unsubscribe => unsubscribe());
         console.log('Recording event listeners set up successfully');
       } catch (error) {
         console.error('Failed to set up recording event listeners:', error);
@@ -328,13 +336,14 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
 
     return () => {
       console.log('Cleaning up recording event listeners');
+      cancelled = true;
       unsubscribes.forEach(unsubscribe => {
         if (unsubscribe && typeof unsubscribe === 'function') {
           unsubscribe();
         }
       });
     };
-  }, [onRecordingStop, onTranscriptionError]);
+  }, []);
 
   return (
     <TooltipProvider>
@@ -343,7 +352,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
           {(isProcessing || isGloballyStopping) && !isParentProcessing ? (
             <div className="flex items-center space-x-2">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-input"></div>
-              <span className="text-sm text-muted-foreground">Processing recording...</span>
+              <span className="text-sm text-muted-foreground">Processando a gravação…</span>
             </div>
           ) : (
             <>
@@ -459,7 +468,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                             <Square size={16} />
                             {isStopping && (
                               <div className="absolute -top-8 text-muted-foreground font-medium text-xs">
-                                Stopping...
+                                Parando…
                               </div>
                             )}
                           </button>

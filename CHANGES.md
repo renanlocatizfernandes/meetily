@@ -289,3 +289,58 @@ Versão de inteligência, com tudo novo desligado por padrão. Notas para o usu�
 - `ask/`: índice local de trechos (FTS5 ou LIKE, criado em tempo de execução) e `ask_meetings` com citações.
 - `summary/templates/detect.rs` e `speakers/suggest.rs`: tipo de reunião, escolha do modelo de resumo e sugestão de nomes; cinco modelos novos em `frontend/src-tauri/templates/`.
 - `jev/`: conexão opcional com o Jev da TypeSafe AI.
+
+## Correções sobre a 1.2.0 (não lançadas, 21/11/2026)
+
+50 correções e micromelhorias. Nenhuma muda comando Tauri, evento ou formato de dados.
+
+1. Ajuda proativa: os switches ficam travados até as configurações salvas carregarem (antes, mexer cedo gravava os padrões por cima).
+2. Ajuda proativa: falha ao salvar volta o valor anterior, e respostas fora de ordem não sobrescrevem a escolha mais nova.
+3. Alertas proativos da gravação anterior somem quando uma nova gravação começa.
+4. Piloto automático: o aviso de término não se perde mais (os ouvintes eram recriados a cada renderização da página e o spinner podia ficar girando para sempre).
+5. Piloto automático: cargas sobrepostas não mostram mais "trabalhando" depois que o piloto terminou.
+6. Piloto automático: "Usar como título" e "Adicionar etiquetas" ficam desativados enquanto aplicam (sem envio duplo).
+7. Piloto automático: listas com itens repetidos não geram chaves duplicadas no React.
+8. Piloto automático: mensagens de cópia concordam em gênero e número ("Tarefas copiadas", "E-mail copiado").
+9. Piloto automático: indicador "Em andamento" passa a ser anunciado por leitores de tela.
+10. Piloto automático: aviso de modelo local sem "()" vazio quando o modelo não é conhecido.
+11. Configurações do piloto automático: ligar e desligar rápido não deixa a tela diferente do que foi salvo.
+12. "Testar conexão": o resultado ("Conexão OK") some ao trocar de provedor ou de chave.
+13. Cadeia de alternativas: não aceita o mesmo provedor e modelo duas vezes.
+14. Cadeia de alternativas: Enter não adiciona durante composição de acentos (IME) nem envia o formulário.
+15. Cadeia de alternativas: botões e campo com nomes acessíveis específicos ("Remover <modelo>", "Adicionar alternativa").
+16. Modelo de resumo sugerido: o aviso "Modelo sugerido" e o registro de uso não se perdem mais quando o modelo é trocado.
+17. Pergunte às reuniões: "cerca de 1,2 mil tokens" (antes "mil de tokens").
+18. Pergunte às reuniões: plural certo em "1 de 1 reunião indexada".
+19. Pergunte às reuniões: "Redigir resposta" fica desativado quando não há modelo configurado (antes mostrava aviso de custo de uma chamada que não acontece).
+20. Ajuda ao vivo: o aviso de nuvem mostra o nome do provedor ("Claude (Anthropic)") em vez do código interno ("claude", "custom-openai").
+21. Alertas e painel da ajuda ao vivo: botões só com ícone ("Dispensar", "Recolher") ganham nome para leitor de tela.
+22. Resumo dos últimos minutos: quando não há nada novo, mostra "Nada de novo nesse período." em vez de uma lista vazia.
+23. Privacidade: a chave de API da transcrição e a do servidor OpenAI personalizado não são mais impressas no console (Configurações, contexto e janela de modelos).
+24. Privacidade: o texto de cada trecho da transcrição ao vivo não é mais impresso no console; fica só o tamanho.
+25. Página da reunião: removido um log que rodava a cada renderização.
+26. Recuperação de reuniões: clicar em "Ver reunião" cancela a navegação automática (antes a página era aberta duas vezes), e o temporizador é limpo ao sair da tela.
+27. Recuperação de reuniões: o aviso volta a aparecer numa próxima sessão quando não sobra nada a recuperar (a checagem lia a lista antiga e nunca limpava).
+28. Recuperação de reuniões: uma falha mostra uma mensagem só (antes vinha o toast e mais um alert nativo); falha ao excluir vira toast.
+29. Recuperação de reuniões: datas e horas em pt-BR mesmo com o Mac em inglês; "Excluindo…" e "Recuperando…" traduzidos.
+30. Gravação: "Processando a gravação…" e "Parando…" traduzidos.
+31. Resumo vazio: botão "Tentar de novo" em vez de "Retry summary".
+32. Erro de transcrição: o aviso ganha título ("Erro na transcrição") em vez de uma linha vazia.
+33. Copiar reunião: data em pt-BR.
+34. Renomear reunião: depois de cancelar com Esc, o primeiro Enter da próxima edição volta a salvar.
+35. Gravação: os avisos de erro de transcrição e de fala detectada eram removidos e registrados de novo a cada segundo; agora ficam registrados uma vez, sem janela em que um erro se perde nem ouvintes duplicados.
+36. Resumo: um clique duplo em "Gerar resumo" não inicia mais duas gerações ao mesmo tempo.
+37. Cronômetro da gravação (tela e barra lateral): mostra horas a partir de 1 hora ("1:15:03" em vez de "75:03"), com teste novo.
+38. Busca na barra lateral: resultados de uma busca antiga não sobrescrevem os da busca mais nova, e o indicador de busca não some antes da hora.
+39. Sobre: classes de tamanho de texto inexistentes ("text-s", "text-medium") trocadas pelas certas, então os textos ficam no tamanho pretendido.
+40. Privacidade: com provedor principal local (Ollama ou IA embutida), a cadeia de alternativas não cai mais para um serviço fora da máquina (nuvem ou servidor OpenAI personalizado); o perfil e as notas de reuniões anteriores não saem sem aviso. O texto da tela explica a regra, com teste.
+41. Custo no Claude: o conteúdo de cada chamada não é mais marcado para cache. Ele muda a cada chamada, então pagava a taxa de gravação de cache (1,25x) sem nunca reaproveitar. O cache do prompt de sistema continua.
+42. Pergunte às reuniões: "contemplam" e "contemporâneo" não são mais lidos como "ontem" (o filtro de período passa a casar palavras inteiras), com teste.
+43. Resumo dos últimos minutos e "Sugerir resposta": com provedor na nuvem, o erro mostra o motivo ("Sem crédito…", "Chave de API inválida…") em vez de uma mensagem genérica, com teste.
+44. "Sugerir resposta" respeita a ajuda ao vivo desligada, como o resumo dos últimos minutos já fazia.
+45. Resumo dos últimos minutos: segue o idioma escolhido na ajuda ao vivo (o prompt fixava português e contradizia o pedido).
+46. Privacidade: o piloto automático registra no log só o tamanho do erro do modelo, não o texto (servidores locais podem devolver trechos da transcrição no erro).
+47. Possíveis divergências: "12,5 mil" e "12.500" agora são o mesmo número (antes geravam alerta falso), com teste.
+48. Modelo de resumo sugerido: horários como "11:15" e "21:10" não contam mais como "1:1", e "março" não conta mais como marco de projeto, com teste.
+49. Sugestão de nomes de quem fala: palavras como "Olha", "Beleza", "Enfim" e "Tipo" não são mais sugeridas como nomes, com teste.
+50. Lista de modelos da OpenAI: esconde modelos que só funcionam na Responses API (-pro, codex, deep-research), que davam erro ao gerar resumo.

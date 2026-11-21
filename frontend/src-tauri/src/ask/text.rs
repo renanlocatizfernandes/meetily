@@ -159,8 +159,9 @@ fn monday_of(date: NaiveDate) -> NaiveDate {
 
 /// Period words understood in the question ("ontem", "semana passada"...).
 pub fn detect_period(question: &str, today: NaiveDate) -> Option<Period> {
-    let folded = fold(question);
-    let has = |needle: &str| folded.contains(needle);
+    // Whole words only: "contemplam" contains "ontem" and must not mean yesterday.
+    let padded = format!(" {} ", words(&fold(question)).join(" "));
+    let has = |needle: &str| padded.contains(&format!(" {needle} "));
     let day_range = |label: &str, first: NaiveDate, last_inclusive: NaiveDate| Period {
         label: label.to_string(),
         from: local_midnight(first),
@@ -255,5 +256,8 @@ mod tests {
         let month = detect_period("mês passado", today).unwrap();
         assert_eq!(month.label, "mês passado");
         assert!(detect_period("sobre o contrato", today).is_none());
+        assert!(detect_period("Quais contratos contemplam suporte?", today).is_none());
+        assert!(detect_period("um tema contemporâneo", today).is_none());
+        assert!(detect_period("O que vimos hoje?", today).is_some());
     }
 }

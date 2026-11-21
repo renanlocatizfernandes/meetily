@@ -84,6 +84,9 @@ const NOT_NAMES: &[&str] = &[
     "claro", "certo", "pois", "mas", "agora", "hoje", "ontem", "amanhã", "amanha", "aqui", "lá",
     "la", "bora", "valeu", "legal", "ótimo", "otimo", "perfeito", "desculpa", "desculpe", "por",
     "para", "com", "que", "como", "quando", "onde", "porque", "sobre", "também", "tambem",
+    // Fillers that open a sentence like a vocative ("Olha, você pode…").
+    "olha", "beleza", "enfim", "show", "nossa", "cara", "tipo", "veja", "escuta", "opa", "pronto",
+    "exato", "isso", "entendi", "bacana", "tranquilo", "massa", "uai", "poxa",
 ];
 
 fn plausible_name(word: &str) -> bool {
@@ -253,6 +256,17 @@ mod tests {
         assert_eq!(out[0].speaker_key, "a");
         assert_eq!(out[0].name, "Carla");
         assert!(out[0].confidence >= 0.85);
+    }
+
+    #[test]
+    fn fillers_are_not_names() {
+        let turns = [
+            turn("a", "Pessoa 1", "Olha, você pode mandar a proposta hoje?"),
+            turn("b", "Pessoa 2", "Posso sim, mando à tarde."),
+            turn("a", "Pessoa 1", "Beleza, como fica o prazo?"),
+            turn("b", "Pessoa 2", "Fica para sexta."),
+        ];
+        assert!(suggest(&turns, &none_named).is_empty());
     }
 
     #[test]

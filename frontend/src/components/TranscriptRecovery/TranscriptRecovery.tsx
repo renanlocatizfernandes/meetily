@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AlertCircle, CheckCircle2, Clock, FileText, Trash2, XCircle } from 'lucide-react';
@@ -86,8 +87,8 @@ export function TranscriptRecovery({
       console.log('Recovery successful:', result);
       onClose();
     } catch (error) {
+      // The page already shows an error toast with the reason.
       console.error('Recovery failed:', error);
-      alert('Não foi possível recuperar a reunião. Tente de novo.');
     } finally {
       setIsRecovering(false);
     }
@@ -107,7 +108,7 @@ export function TranscriptRecovery({
       setPreviewTranscripts([]);
     } catch (error) {
       console.error('Delete failed:', error);
-      alert('Não foi possível excluir a reunião. Tente de novo.');
+      toast.error('Não foi possível excluir a reunião', { description: 'Tente de novo.' });
     } finally {
       setIsDeleting(false);
     }
@@ -180,7 +181,7 @@ export function TranscriptRecovery({
                   <div className="p-4 border-b bg-muted/50">
                     <h4 className="font-semibold">{selectedMeeting.title}</h4>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Iniciada em {new Date(selectedMeeting.startTime).toLocaleString()}
+                      Iniciada em {new Date(selectedMeeting.startTime).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
                     </p>
                     <div className="flex items-center gap-4 mt-2 text-sm">
                       <span className="flex items-center gap-1">
@@ -230,7 +231,7 @@ export function TranscriptRecovery({
                                 }
                                 return '--:--';
                               }
-                              return date.toLocaleTimeString();
+                              return date.toLocaleTimeString('pt-BR');
                             } catch {
                               return '--:--';
                             }
@@ -281,7 +282,7 @@ export function TranscriptRecovery({
             {isDeleting ? (
               <>
                 <XCircle className="w-4 h-4 mr-2 animate-spin" />
-                Deleting...
+                Excluindo…
               </>
             ) : (
               <>
@@ -297,7 +298,7 @@ export function TranscriptRecovery({
             {isRecovering ? (
               <>
                 <CheckCircle2 className="w-4 h-4 mr-2 animate-spin" />
-                Recovering...
+                Recuperando…
               </>
             ) : (
               <>
