@@ -290,7 +290,11 @@ Versão de inteligência, com tudo novo desligado por padrão. Notas para o usu�
 - `summary/templates/detect.rs` e `speakers/suggest.rs`: tipo de reunião, escolha do modelo de resumo e sugestão de nomes; cinco modelos novos em `frontend/src-tauri/templates/`.
 - `jev/`: conexão opcional com o Jev da TypeSafe AI.
 
-## Correções sobre a 1.2.0 (não lançadas, 21/11/2026)
+## Meetily Live Plus 1.2.1 (21/11/2026)
+
+Versão de correções. Notas para o usuário em `docs/releases/1.2.1.md`; detalhes no PR #8.
+
+### Correções sobre a 1.2.0
 
 50 correções e micromelhorias. Nenhuma muda comando Tauri, evento ou formato de dados.
 
