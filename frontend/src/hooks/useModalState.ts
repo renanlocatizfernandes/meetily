@@ -142,7 +142,7 @@ export function useModalState(transcriptModelConfig?: TranscriptModelProps): Use
             showModal('modelSelector', userMessage);
           } else {
             // Show toast instead of modal for non-actionable errors (consistent with sidebar)
-            toast.error('', {
+            toast.error('Erro na transcrição', {
               description: userMessage,
               duration: 5000,
             });

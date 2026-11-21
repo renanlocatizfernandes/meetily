@@ -207,7 +207,12 @@ export function AskPanel({ meetingId = null }: AskPanelProps) {
           </form>
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <label className="flex items-center gap-2">
-              <Switch checked={useLlm} onCheckedChange={setUseLlm} aria-label="Redigir resposta com o modelo" />
+              <Switch
+                checked={useLlm}
+                onCheckedChange={setUseLlm}
+                disabled={!!status && !status.llmConfigured}
+                aria-label="Redigir resposta com o modelo"
+              />
               <span>
                 Redigir resposta
                 {status ? (
@@ -221,7 +226,7 @@ export function AskPanel({ meetingId = null }: AskPanelProps) {
             </label>
             {status && (
               <span>
-                {status.indexedMeetings} de {status.totalMeetings} reuniões indexadas
+                {status.indexedMeetings} de {status.totalMeetings} {status.totalMeetings === 1 ? 'reunião indexada' : 'reuniões indexadas'}
                 {status.searchMode === 'basic' && ' · busca simples'}
               </span>
             )}
@@ -292,7 +297,7 @@ function AssistantView({ response, onOpen }: { response: AskResponse; onOpen: (c
       {response.leavesMachine && (
         <p className="text-xs text-warning">
           Os trechos abaixo foram enviados a {providerLabel(response.provider)}
-          {response.estimatedTokens > 0 && <> (cerca de {formatTokens(response.estimatedTokens)} de tokens)</>}. Provedores pagos
+          {response.estimatedTokens > 0 && <> (cerca de {formatTokens(response.estimatedTokens)} tokens)</>}. Provedores pagos
           cobram por uso.
         </p>
       )}

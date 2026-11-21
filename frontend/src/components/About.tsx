@@ -62,7 +62,7 @@ export function About() {
                 </div>
                 {/* <h1 className="text-xl font-bold text-foreground">Meetily</h1> */}
                 <span className="text-sm text-muted-foreground"> v{currentVersion}</span>
-                <p className="text-medium text-muted-foreground mt-1">
+                <p className="text-base text-muted-foreground mt-1">
                     Notas e resumos em tempo real que não saem do seu computador.
                 </p>
                 <p className="mt-2 text-sm text-foreground">
@@ -124,15 +124,15 @@ export function About() {
 
             {/* Coming Soon - Compact */}
             <div className="bg-brand-soft rounded p-3">
-                <p className="text-s text-brand">
+                <p className="text-sm text-brand">
                     <span className="font-bold">Em breve:</span> uma biblioteca de agentes de IA locais para automatizar follow-ups, acompanhar tarefas e muito mais.
                 </p>
             </div>
 
             {/* CTA Section - Compact */}
             <div className="text-center space-y-2">
-                <h3 className="text-medium font-semibold text-foreground">Quer levar sua empresa mais longe?</h3>
-                <p className="text-s text-muted-foreground">
+                <h3 className="text-base font-semibold text-foreground">Quer levar sua empresa mais longe?</h3>
+                <p className="text-sm text-muted-foreground">
                     Se você planeja criar agentes de IA sob medida, com privacidade em primeiro lugar, ou um produto feito para a sua <span className="font-bold">empresa</span>, a Zackriya pode ajudar.
                 </p>
                 <button

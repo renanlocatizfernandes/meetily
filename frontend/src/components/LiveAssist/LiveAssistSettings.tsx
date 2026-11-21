@@ -11,6 +11,7 @@ import { LatencyBenchmarkCard } from '@/components/LiveAssist/LatencyBenchmarkCa
 import { VoiceModelCard } from '@/components/VoiceModel/VoiceModelCard';
 import { ContextProfileCard } from '@/components/LiveAssist/ContextProfileCard';
 import { SmartAssistCard } from '@/components/LiveAssist/SmartAssistCard';
+import { providerLabel } from '@/lib/ask';
 
 const CLOUD_PROVIDERS = new Set(['openai', 'claude', 'groq', 'openrouter', 'custom-openai']);
 
@@ -127,7 +128,7 @@ export function LiveAssistSettings() {
 
       {cloud && (
         <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          O provedor de resumo atual é {summaryProvider}. O texto da transcrição será enviado a esse serviço. Para manter tudo local, escolha Ollama nas configurações de resumo. Se o campo de modelo continuar como llama3.2:latest, a ajuda ao vivo usa o modelo já salvo no resumo.
+          O provedor de resumo atual é {providerLabel(summaryProvider.toLowerCase())}. O texto da transcrição será enviado a esse serviço. Para manter tudo local, escolha Ollama nas configurações de resumo. Se o campo de modelo continuar como llama3.2:latest, a ajuda ao vivo usa o modelo já salvo no resumo.
         </p>
       )}
 

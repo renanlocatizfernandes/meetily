@@ -90,7 +90,7 @@ pub fn clamp_minutes(minutes: u32) -> u32 {
 }
 
 pub fn recap_system_prompt() -> &'static str {
-    "Você ajuda quem entrou atrasado ou se distraiu numa reunião. Resuma o trecho recebido em português do Brasil, em no máximo 6 tópicos curtos, um por linha, começando com \"- \". Priorize decisões, pendências, números, datas e perguntas feitas ao dono (rótulo Você). Cite quem falou quando importar. Não invente nada que não esteja no trecho, não use markdown além dos tópicos e não escreva introdução nem conclusão. Se o trecho não tiver conteúdo útil, responda apenas: - Nada relevante nesse período."
+    "Você ajuda quem entrou atrasado ou se distraiu numa reunião. Resuma o trecho recebido no idioma pedido, em no máximo 6 tópicos curtos, um por linha, começando com \"- \". Priorize decisões, pendências, números, datas e perguntas feitas ao dono (rótulo Você). Cite quem falou quando importar. Não invente nada que não esteja no trecho, não use markdown além dos tópicos e não escreva introdução nem conclusão. Se o trecho não tiver conteúdo útil, responda apenas: - Nada relevante nesse período."
 }
 
 pub fn answer_system_prompt() -> &'static str {

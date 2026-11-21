@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
@@ -9,14 +9,14 @@ import { DEFAULT_SMART_SETTINGS, SmartSettings } from '@/lib/liveAssistSmart';
 
 const CLOUD_PROVIDERS = new Set(['openai', 'claude', 'groq', 'openrouter', 'custom-openai']);
 
-function Row({ title, hint, checked, onChange }: { title: string; hint: string; checked: boolean; onChange: (value: boolean) => void }) {
+function Row({ title, hint, checked, onChange, disabled }: { title: string; hint: string; checked: boolean; onChange: (value: boolean) => void; disabled?: boolean }) {
   return (
     <label className="flex items-start justify-between gap-4">
       <span>
         <span className="block text-sm font-medium text-foreground">{title}</span>
         <span className="block text-xs text-muted-foreground">{hint}</span>
       </span>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
     </label>
   );
 }
@@ -37,12 +37,20 @@ export function SmartAssistCard() {
       .catch(() => setCloud(false));
   }, []);
 
+  const saveSeq = useRef(0);
+
   const update = async (patch: Partial<SmartSettings>) => {
+    // Until the saved values arrive, a save would overwrite them with the defaults.
+    if (!loaded) return;
+    const previous = settings;
     const next = { ...settings, ...patch };
+    const id = ++saveSeq.current;
     setSettings(next);
     try {
-      setSettings(await invoke<SmartSettings>('save_live_assist_smart_settings', { settings: next }));
+      const saved = await invoke<SmartSettings>('save_live_assist_smart_settings', { settings: next });
+      if (id === saveSeq.current) setSettings(saved);
     } catch (error) {
+      if (id === saveSeq.current) setSettings(previous);
       toast.error('Não foi possível salvar');
       console.error(error);
     }
@@ -60,30 +68,35 @@ export function SmartAssistCard() {
           title="Pergunta para você"
           hint="Avisa quando alguém faz uma pergunta direta e oferece sugerir uma resposta."
           checked={settings.questionAlerts}
+          disabled={!loaded}
           onChange={(value) => update({ questionAlerts: value })}
         />
         <Row
           title="Decisões"
           hint="Avisa quando a conversa fecha uma decisão (&quot;ficou decidido&quot;, &quot;combinamos&quot;)."
           checked={settings.decisionAlerts}
+          disabled={!loaded}
           onChange={(value) => update({ decisionAlerts: value })}
         />
         <Row
           title="Tarefas"
           hint="Avisa quando alguém pede algo a você ou define um próximo passo."
           checked={settings.taskAlerts}
+          disabled={!loaded}
           onChange={(value) => update({ taskAlerts: value })}
         />
         <Row
           title="Possíveis divergências"
           hint="Compara números e dias ditos agora com as anotações de reuniões anteriores do mesmo cliente. Só aponta, nunca afirma."
           checked={settings.contradictionAlerts}
+          disabled={!loaded}
           onChange={(value) => update({ contradictionAlerts: value })}
         />
         <Row
           title="Responder perguntas sozinho"
           hint="Escreve uma resposta assim que uma pergunta é detectada. Chama o modelo; com provedor na nuvem, gasta tokens. Desligado por padrão."
           checked={settings.autoAnswer}
+          disabled={!loaded}
           onChange={(value) => update({ autoAnswer: value })}
         />
         <label className="block space-y-1">
@@ -91,6 +104,7 @@ export function SmartAssistCard() {
           <select
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
             value={settings.economy}
+            disabled={!loaded}
             onChange={(event) => update({ economy: event.target.value as SmartSettings['economy'] })}
           >
             <option value="auto">Automático (liga só com provedor na nuvem)</option>

@@ -66,7 +66,7 @@ pub fn figures(text: &str) -> BTreeSet<String> {
             continue;
         }
         let scaled = match words.get(index + 1).map(|next| next.trim_matches(|c: char| !c.is_alphanumeric())) {
-            Some("mil") => digits.parse::<f64>().ok().map(|value| format!("{}", (value * 1000.0).round() as i64)),
+            Some("mil") => digits.replace(',', ".").parse::<f64>().ok().map(|value| format!("{}", (value * 1000.0).round() as i64)),
             Some("milhao") | Some("milhoes") => {
                 digits.replace(',', ".").parse::<f64>().ok().map(|value| format!("{}", (value * 1_000_000.0).round() as i64))
             }
@@ -145,6 +145,11 @@ mod tests {
         assert!(figures("Entrego na Sexta-feira").contains("sexta"));
         assert!(figures("Reunião dia 12/11 às 10h30").contains("12/11"));
         assert!(figures("sem numero nenhum").is_empty());
+    }
+
+    #[test]
+    fn a_decimal_thousand_matches_the_full_number() {
+        assert_eq!(figures("12,5 mil"), figures("12.500"));
     }
 
     #[test]

@@ -20,7 +20,7 @@ use super::model::{
     AutopilotSettings, Wanted, STATE_DONE, STATE_FAILED, STATE_OFF, STATE_SKIPPED, STATUS_DONE, STATUS_FAILED,
     STATUS_PARTIAL, STATUS_SKIPPED, STEP_EMAIL, STEP_SUMMARY, STEP_TASKS, STEP_TITLE_TAGS,
 };
-use super::parse::{clamp_chars, parse_extraction};
+use super::parse::parse_extraction;
 use super::plan::{plan_target, Configured, LocalChoice, Plan};
 use super::prompt::{build_user_prompt, RETRY_SUFFIX, SYSTEM_PROMPT};
 use super::store;
@@ -143,7 +143,8 @@ async fn ask_extraction<E: Engine>(
                 }
             },
             Err(error) => {
-                log::warn!("Autopilot: model call failed: {}", clamp_chars(&error, 160));
+                // Error bodies of local servers may echo the prompt; log only the size.
+                log::warn!("Autopilot: model call failed ({} chars of error)", error.chars().count());
                 return Err("falha ao chamar o modelo".to_string());
             }
         }
@@ -197,7 +198,7 @@ pub(super) async fn pipeline<E: Engine>(
                 summary = Some(markdown).filter(|m| !m.trim().is_empty());
             }
             Err(error) => {
-                log::warn!("Autopilot: summary step failed: {}", clamp_chars(&error, 160));
+                log::warn!("Autopilot: summary step failed ({} chars of error)", error.chars().count());
                 steps.insert(STEP_SUMMARY.to_string(), STATE_FAILED.to_string());
                 notes.push("O resumo não foi gerado.");
             }

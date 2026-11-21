@@ -68,12 +68,6 @@ export default function PageContent({
   loadedCount?: number;
   onLoadMore?: () => void;
 }) {
-  console.log('📄 PAGE CONTENT: Initializing with data:', {
-    meetingId: meeting.id,
-    summaryDataKeys: summaryData ? Object.keys(summaryData) : null,
-    transcriptsCount: meeting.transcripts?.length
-  });
-
   // State
   const [customPrompt, setCustomPrompt] = useState<string>('');
   const isRecording = false;

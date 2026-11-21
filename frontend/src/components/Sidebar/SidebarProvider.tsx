@@ -297,24 +297,27 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     // The actual recording start/stop is handled in the Home component
   };
 
+  // Each keystroke starts a search; only the newest one may show its results.
+  const searchSeqRef = React.useRef(0);
+
   // Function to search through meeting transcripts
   const searchTranscripts = async (query: string) => {
+    const id = ++searchSeqRef.current;
     if (!query.trim()) {
       setSearchResults([]);
+      setIsSearching(false);
       return;
     }
 
     try {
       setIsSearching(true);
-
-
       const results = await invoke('api_search_transcripts', { query }) as TranscriptSearchResult[];
-      setSearchResults(results);
+      if (id === searchSeqRef.current) setSearchResults(results);
     } catch (error) {
       console.error('Error searching transcripts:', error);
-      setSearchResults([]);
+      if (id === searchSeqRef.current) setSearchResults([]);
     } finally {
-      setIsSearching(false);
+      if (id === searchSeqRef.current) setIsSearching(false);
     }
   };
 

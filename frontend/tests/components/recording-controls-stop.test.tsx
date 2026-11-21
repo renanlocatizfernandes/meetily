@@ -51,7 +51,7 @@ for (const result of ['stopped', 'already_stopping', 'not_active']) {
     if (result === 'stopped') expect(postprocess).toHaveBeenCalledWith(true);
     else expect(postprocess).not.toHaveBeenCalled();
     expect(initiate).toHaveBeenCalledTimes(result === 'stopped' ? 1 : 0);
-    expect(JSON.stringify(renderer!.toJSON())).not.toContain('Processing recording...');
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain('Processando a gravação…');
   });
 }
 
@@ -104,7 +104,7 @@ test('global stopping keeps the processing indicator after a losing Stop', async
   await act(async () => { renderer!.root.findAllByType('button')[1].props.onClick(); });
   globalStopping = true;
   await act(async () => { renderer!.update(<RecordingControls {...props} />); });
-  expect(JSON.stringify(renderer!.toJSON())).toContain('Processing recording...');
+  expect(JSON.stringify(renderer!.toJSON())).toContain('Processando a gravação…');
   expect(postprocess).not.toHaveBeenCalled();
   globalStopping = false;
 });

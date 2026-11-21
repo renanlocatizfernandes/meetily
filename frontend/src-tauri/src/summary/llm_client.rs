@@ -115,7 +115,6 @@ pub struct ClaudeRequest {
 /// Minimum user-prompt size (chars) before we mark it as a cache breakpoint.
 /// Prefixes below the model's minimum are silently not cached, so this only
 /// avoids pointless markers on tiny prompts.
-const CLAUDE_CACHE_MIN_CHARS: usize = 4000;
 
 /// Whether `model` is a Claude 5.x model, which accepts `output_config.effort`.
 /// Older models reject the field, so it is never sent to them.
@@ -128,19 +127,17 @@ pub(crate) fn claude_supports_effort(model: &str) -> bool {
 
 /// Build the Anthropic Messages API body with prompt caching.
 ///
-/// The system prompt and (for long transcripts) the user content carry an
-/// ephemeral `cache_control` breakpoint, so chunked summaries that reuse the
-/// same prefix are billed at the cache-read rate.
+/// Only the system prompt carries an ephemeral `cache_control` breakpoint: it is
+/// the prefix that repeats across chunked summaries and live calls. The user
+/// content changes on every call, so marking it would pay the cache-write
+/// surcharge (1.25x input) without ever getting a cache read.
 pub(crate) fn build_claude_body(
     model_name: &str,
     system_prompt: &str,
     user_prompt: &str,
     effort: Option<&str>,
 ) -> ClaudeRequest {
-    let mut user_block = serde_json::json!({"type": "text", "text": user_prompt});
-    if user_prompt.len() >= CLAUDE_CACHE_MIN_CHARS {
-        user_block["cache_control"] = serde_json::json!({"type": "ephemeral"});
-    }
+    let user_block = serde_json::json!({"type": "text", "text": user_prompt});
     ClaudeRequest {
         model: model_name.to_string(),
         // Shared budget: thinking tokens count against it as well.
@@ -323,6 +320,12 @@ pub(crate) async fn generate_summary(
             continue;
         }
         if fb_provider == LLMProvider::BuiltInAI && app_data_dir.is_none() {
+            continue;
+        }
+        // Callers choose what goes in the prompt (profile, earlier notes) and tell the
+        // user "local, no cost" from the primary provider. A local primary must not
+        // silently fall back to a cloud service.
+        if !fallback_allowed(provider, &fb_provider) {
             continue;
         }
         warn!(
@@ -624,6 +627,17 @@ async fn generate_summary_once(
 const MAX_ATTEMPTS: u32 = 3;
 const MAX_BACKOFF: Duration = Duration::from_secs(20);
 
+/// Same rule the callers use for `leaves_machine`: only Ollama and the built-in
+/// model run on this computer; a custom OpenAI server may be anywhere.
+pub(crate) fn runs_locally(provider: &LLMProvider) -> bool {
+    matches!(provider, LLMProvider::Ollama | LLMProvider::BuiltInAI)
+}
+
+/// A local primary never falls back to something that leaves the machine.
+fn fallback_allowed(primary: &LLMProvider, fallback: &LLMProvider) -> bool {
+    runs_locally(fallback) || !runs_locally(primary)
+}
+
 /// Cloud providers get retry/backoff and friendly error messages; local and
 /// user-hosted endpoints keep the raw behaviour.
 pub(crate) fn is_cloud_provider(provider: &LLMProvider) -> bool {
@@ -863,14 +877,25 @@ mod tests {
     }
 
     #[test]
+    fn a_local_primary_never_falls_back_to_the_cloud() {
+        use LLMProvider::*;
+        assert!(!fallback_allowed(&Ollama, &Claude));
+        assert!(!fallback_allowed(&BuiltInAI, &CustomOpenAI));
+        assert!(fallback_allowed(&Ollama, &BuiltInAI));
+        assert!(fallback_allowed(&Claude, &OpenRouter));
+        assert!(fallback_allowed(&CustomOpenAI, &Claude));
+        assert!(fallback_allowed(&OpenAI, &Ollama));
+    }
+
+    #[test]
     fn claude_body_has_cache_breakpoints_and_gated_effort() {
-        let long = "x".repeat(CLAUDE_CACHE_MIN_CHARS);
+        let long = "x".repeat(4000);
         let body = serde_json::to_value(build_claude_body(
             "claude-opus-5-5", "sys", &long, Some("low"),
         ))
         .unwrap();
         assert_eq!(body["system"][0]["cache_control"]["type"], "ephemeral");
-        assert_eq!(body["messages"][0]["content"][0]["cache_control"]["type"], "ephemeral");
+        assert!(body["messages"][0]["content"][0].get("cache_control").is_none(), "user content changes on every call");
         assert_eq!(body["output_config"]["effort"], "low");
 
         let short = serde_json::to_value(build_claude_body(

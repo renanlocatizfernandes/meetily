@@ -30,6 +30,9 @@ export function useTemplates({ meetingId, transcripts }: UseTemplatesOptions = {
   const manualMeetingsRef = useRef(new Set<string>());
   const detectedMeetingsRef = useRef(new Set<string>());
   const transcriptsRef = useRef(transcripts);
+  // Read after an await: a state updater is not guaranteed to run before the next line.
+  const selectedTemplateRef = useRef(selectedTemplate);
+  selectedTemplateRef.current = selectedTemplate;
   transcriptsRef.current = transcripts;
   const hasTranscript = (transcripts?.length ?? 0) > 0;
 
@@ -72,18 +75,13 @@ export function useTemplates({ meetingId, transcripts }: UseTemplatesOptions = {
         const suggestion = await invokeTauri('api_detect_meeting_template', { text }) as TemplateSuggestion;
         if (cancelled || manualMeetingsRef.current.has(meetingId)) return;
         const ids = availableTemplates.map((template) => template.id);
-        let applied = false;
-        setSelectedTemplate((current) => {
-          if (!shouldApplySuggestion(suggestion, ids, current)) return current;
-          applied = true;
-          return suggestion.template_id;
+        if (!shouldApplySuggestion(suggestion, ids, selectedTemplateRef.current)) return;
+        selectedTemplateRef.current = suggestion.template_id;
+        setSelectedTemplate(suggestion.template_id);
+        toast.info(`Modelo sugerido: ${suggestion.template_name}`, {
+          description: 'Escolhido pelo conteúdo da conversa. Você pode trocar em "Modelo de resumo".',
         });
-        if (applied) {
-          toast.info(`Modelo sugerido: ${suggestion.template_name}`, {
-            description: 'Escolhido pelo conteúdo da conversa. Você pode trocar em "Modelo de resumo".',
-          });
-          Analytics.trackFeatureUsed('template_auto_selected');
-        }
+        Analytics.trackFeatureUsed('template_auto_selected');
       } catch (error) {
         // Detection is a convenience: a failure keeps the current template.
         console.error('Template detection failed:', error);

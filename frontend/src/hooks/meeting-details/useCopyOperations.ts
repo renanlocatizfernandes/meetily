@@ -85,7 +85,7 @@ export function useCopyOperations({
     };
 
     const header = `# Transcrição da reunião: ${meeting.id} - ${meetingTitle ?? meeting.title}\n\n`;
-    const date = `## Data: ${new Date(meeting.created_at).toLocaleDateString()}\n\n`;
+    const date = `## Data: ${new Date(meeting.created_at).toLocaleDateString('pt-BR')}\n\n`;
     const fullTranscript = allTranscripts
       .map(t => `${formatTime(t.audio_start_time, t.timestamp)} ${t.text}  `)
       .join('\n');

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle2, ChevronDown, ChevronUp, Loader2, Plus, Trash2, XCircle, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +35,11 @@ export function TestConnectionButton({
 }) {
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<ProviderConnectionResult | null>(null);
+
+  // A result is only valid for the provider and key it was tested with.
+  useEffect(() => {
+    setResult(null);
+  }, [provider, apiKey]);
 
   const run = async () => {
     setTesting(true);
@@ -92,6 +97,10 @@ export function CloudProviderExtras() {
   const addEntry = () => {
     const model = newModel.trim();
     if (!model) return;
+    if (fallbackChain.entries.some((entry) => entry.provider === newProvider && entry.model === model)) {
+      setNewModel('');
+      return;
+    }
     setFallbackChain({
       ...fallbackChain,
       entries: [...fallbackChain.entries, { provider: newProvider, model }],
@@ -149,7 +158,8 @@ export function CloudProviderExtras() {
             </div>
             <p className="text-xs text-muted-foreground">
               Desligado por padrão. Quando ligado, a ordem abaixo é seguida se o provedor principal falhar. Provedores
-              pagos sem chave configurada são ignorados. Coloque um modelo local por último para sempre ter resposta.
+              pagos sem chave configurada são ignorados. Se o provedor principal for local, as alternativas na nuvem também são
+              ignoradas, para o texto não sair da máquina sem aviso. Coloque um modelo local por último para sempre ter resposta.
             </p>
             <ol className="space-y-1">
               {fallbackChain.entries.map((e, i) => (
@@ -158,7 +168,7 @@ export function CloudProviderExtras() {
                   <span className="flex-1 truncate">
                     {FALLBACK_PROVIDERS.find((p) => p.value === e.provider)?.label ?? e.provider} · {e.model}
                   </span>
-                  <Button type="button" variant="ghost" size="icon" onClick={() => removeEntry(i)} aria-label="Remover">
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeEntry(i)} aria-label={`Remover ${e.model}`}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </li>
@@ -180,10 +190,16 @@ export function CloudProviderExtras() {
               <Input
                 value={newModel}
                 onChange={(e) => setNewModel(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addEntry()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    addEntry();
+                  }
+                }}
                 placeholder="ID do modelo"
+                aria-label="ID do modelo alternativo"
               />
-              <Button type="button" variant="outline" size="icon" onClick={addEntry} aria-label="Adicionar">
+              <Button type="button" variant="outline" size="icon" onClick={addEntry} aria-label="Adicionar alternativa">
                 <Plus className="h-4 w-4" />
               </Button>
             </div>

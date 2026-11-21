@@ -97,6 +97,10 @@ fn is_chat_model(model_id: &str) -> bool {
         && !id.contains("instruct")
         && !id.contains("realtime")
         && !id.contains("audio")
+        // Only served by the Responses API; this app calls chat completions.
+        && !id.contains("-pro")
+        && !id.contains("codex")
+        && !id.contains("deep-research")
 }
 
 /// Fetch OpenAI models from API
@@ -211,7 +215,7 @@ mod tests {
 
     #[test]
     fn keeps_chat_and_reasoning_models_only() {
-        for ok in ["gpt-5", "gpt-4o-mini", "o3", "o4-mini", "o5-pro", "chatgpt-4o-latest"] {
+        for ok in ["gpt-5", "gpt-4o-mini", "o3", "o4-mini", "o5", "chatgpt-4o-latest"] {
             assert!(is_chat_model(ok), "{ok}");
         }
         for bad in [
@@ -222,6 +226,10 @@ mod tests {
             "gpt-4o-realtime-preview",
             "omni-moderation-latest",
             "dall-e-3",
+            "o3-pro",
+            "gpt-5-pro",
+            "gpt-5-codex",
+            "o4-mini-deep-research",
         ] {
             assert!(!is_chat_model(bad), "{bad}");
         }

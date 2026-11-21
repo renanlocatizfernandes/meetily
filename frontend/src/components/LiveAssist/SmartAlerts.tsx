@@ -63,7 +63,7 @@ function AlertCard({ alert, onDismiss, canAnswer }: { alert: SmartAlert; onDismi
             </button>
           )}
         </div>
-        <button type="button" className="rounded p-1 hover:bg-white/60" onClick={onDismiss} title="Dispensar">
+        <button type="button" className="rounded p-1 hover:bg-white/60" onClick={onDismiss} title="Dispensar" aria-label="Dispensar alerta">
           <X className="h-3.5 w-3.5" />
         </button>
       </div>

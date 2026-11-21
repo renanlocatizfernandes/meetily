@@ -90,7 +90,7 @@ const PROFILES: &[Profile] = &[
     Profile {
         template_id: "project_sync",
         phrases: &[
-            ("status do projeto", 4), ("andamento", 2), ("marco*", 2),
+            ("status do projeto", 4), ("andamento", 2), ("marco do projeto", 3), ("marcos do projeto", 3), ("marco de entrega", 3),
             ("cronograma", 3), ("entrega*", 1), ("roadmap", 3), ("escopo", 2),
             ("stakeholder*", 3), ("risco*", 2), ("prazo*", 1), ("projeto*", 1),
         ],
@@ -124,8 +124,28 @@ pub struct Detection {
 
 /// Lowercase, drop accents and punctuation, and join words with one space,
 /// padded at both ends so whole-word matching is a plain substring search.
+/// "1:1" as a meeting type, not inside a time such as "11:15" or "21:10".
+fn mark_one_on_one(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let is_pattern = chars[i] == '1' && chars.get(i + 1) == Some(&':') && chars.get(i + 2) == Some(&'1');
+        let digit_before = i > 0 && chars[i - 1].is_ascii_digit();
+        let digit_after = chars.get(i + 3).is_some_and(|c| c.is_ascii_digit());
+        if is_pattern && !digit_before && !digit_after {
+            out.push_str(" um_a_um ");
+            i += 3;
+        } else {
+            out.push(chars[i]);
+            i += 1;
+        }
+    }
+    out
+}
+
 fn normalize(text: &str) -> String {
-    let lowered = text.to_lowercase().replace("1:1", " um_a_um ");
+    let lowered = mark_one_on_one(&text.to_lowercase());
     let mut out = String::with_capacity(lowered.len() + 2);
     out.push(' ');
     let mut last_space = true;
@@ -224,6 +244,14 @@ mod tests {
         let result = detect(text, all);
         assert!(result.detected);
         assert_eq!(result.template_id, "daily_standup");
+    }
+
+    #[test]
+    fn times_are_not_one_on_one_and_march_is_not_a_milestone() {
+        assert!(normalize("reunião às 11:15 e às 21:10").find("um_a_um").is_none());
+        assert!(normalize("nosso 1:1 semanal").contains(" um_a_um "));
+        let text = "Em março a gente revisa. Março tem feriado. Começa em março.";
+        assert_ne!(detect(text, all).template_id, "project_sync");
     }
 
     #[test]

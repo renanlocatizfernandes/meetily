@@ -105,7 +105,7 @@ export function costNotice(status: AutopilotStatus | null): { tone: 'warning' | 
   if (status.willUse === 'local_fallback') {
     return {
       tone: 'info',
-      text: `${providerLabel(status.provider)} está sem chave. O piloto vai usar o modelo local (${status.willUseModel ?? ''}), sem custo.`,
+      text: `${providerLabel(status.provider)} está sem chave. O piloto vai usar o modelo local${status.willUseModel ? ` (${status.willUseModel})` : ''}, sem custo.`,
     };
   }
   if (status.paid) {
