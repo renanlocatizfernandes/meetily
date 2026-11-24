@@ -247,7 +247,7 @@ Quatro migrações novas rodam na primeira abertura: `20261120000000_assist_upgr
 ### Modelos recomendados para este Mac
 
 - Cartão novo no topo de Configurações → Transcrição e → Resumo. O app lê a memória e o chip da máquina e recomenda, por função (fala, vozes, assistente), um conjunto que cabe junto na memória. Nada é baixado nem trocado sem clique em "Baixar e usar".
-- Faixas (português): 8 GB (MacBook Air M2): Parakeet v3 int8, CAM++ e `llama3.2`; 12 GB: `qwen3.5:4b`; 16 GB: ReDimNet2-B6 nas vozes e `gemma4:e4b`; 24 GB ou mais: `gemma4:12b`; 48 GB ou mais: `gemma4:26b`.
+- Faixas (português): 8 GB (MacBook Air M2): Parakeet v3 int8, CAM++ e `llama3.2`; 12 GB: `qwen3.5:4b`; 16 GB: ReDimNet2-B6 nas vozes e `gemma4:e4b`; 24 GB ou mais: `gemma4:12b`; 48 GB ou mais: `gemma4:26b`. Desde 23/11/2026 essas faixas valem para **resumo e organização**; a ajuda ao vivo fica no `llama3.2` em qualquer faixa (ver "Ajuda ao vivo leve", no fim).
 - Vozes: novo modelo opcional ReDimNet2-B6 (51 MB, MIT). Em 20 falantes em português (fala lida) errou menos que o CAM++ (EER 0,47% contra 0,59% em trechos de 3 s), mas custa cerca de 0,5 s de CPU por turno; por isso só é recomendado a partir de 16 GB.
 - Fala: entraram como alternativas o Parakeet v3 TAGARELA (ajustado para pt-BR, CC-BY-4.0) e o Whisper `large-v3-turbo-q8_0`. No teste com 80 trechos em português o TAGARELA empatou com o Parakeet v3 que já era o padrão (WER 8,4% contra 8,5%), então o recomendado não mudou.
 - Os modelos do Ollama são baixados pelo próprio Ollama local (`/api/pull`), com progresso e cancelamento. Só o `llama3.2` foi executado nos testes; os demais foram conferidos no registro (tamanho e licença), não em uso. Meça a latência em Configurações → Ajuda ao vivo antes de adotar um modelo maior.
@@ -256,7 +256,7 @@ Quatro migrações novas rodam na primeira abertura: `20261120000000_assist_upgr
 ### Ajustes de 19/11/2026
 
 - A ajuda ao vivo vem **desligada por padrão** (a migração `20261122000000_live_assist_off_by_default` desliga uma vez; depois vale a escolha do usuário).
-- As sugestões ao vivo usam a API nativa do Ollama (`/api/chat`) com `num_ctx` de 4096 e sem modo de raciocínio. Com o `gemma4:12b` num Mac de 24 GB, o modelo carregado caiu de 16 GB para 7,8 GB. Se a chamada nativa não for aceita, o app volta para a rota compatível com OpenAI. Resumo e organização continuam com o contexto padrão do Ollama.
+- As sugestões ao vivo usam a API nativa do Ollama (`/api/chat`) com `num_ctx` de 4096 e sem modo de raciocínio. Com o `gemma4:12b` num Mac de 24 GB, o modelo recém-carregado caiu de 16 GB para 7,8 GB. Esse número só vale logo depois da carga: em uso contínuo a memória volta a subir (medição de 23/11/2026, no fim). Se a chamada nativa não for aceita, o app volta para a rota compatível com OpenAI. Resumo e organização continuam com o contexto padrão do Ollama.
 - Barra lateral: durante a gravação o rodapé mostra só o tempo, sem empurrar os ícones; os filtros de conversas quebram em até duas linhas.
 - O diálogo "Classificar reunião" não deixa mais os campos passarem da largura.
 
@@ -348,3 +348,21 @@ Versão de correções. Notas para o usuário em `docs/releases/1.2.1.md`; detal
 48. Modelo de resumo sugerido: horários como "11:15" e "21:10" não contam mais como "1:1", e "março" não conta mais como marco de projeto, com teste.
 49. Sugestão de nomes de quem fala: palavras como "Olha", "Beleza", "Enfim" e "Tipo" não são mais sugeridas como nomes, com teste.
 50. Lista de modelos da OpenAI: esconde modelos que só funcionam na Responses API (-pro, codex, deep-research), que davam erro ao gerar resumo.
+
+### Ajuda ao vivo leve (23/11/2026)
+
+Medição num MacBook Pro M5 Pro de 24 GB, Ollama 0.40.16, texto sintético, uma chamada a cada 2 a 4 segundos como a ajuda ao vivo faz:
+
+| Modelo na ajuda ao vivo | Memória do Ollama |
+|---|---|
+| `gemma4:12b`, `gemma4:e4b`, `qwen3.5:9b` (rodam pelo MLX) | 15 a 16 GiB em 5 a 8 minutos, com qualquer `num_ctx` e qualquer formato de prompt |
+| `llama3.2`, prompt antigo (janela deslizante) | de 0,6 para cerca de 9 GiB em 4 minutos |
+| `llama3.2`, prompt novo | 3,2 GiB depois de 9 minutos e 144 chamadas |
+
+A causa é o cache de prompts do Ollama, que cresce quando o começo do prompt muda a cada chamada; não é o tamanho do modelo. Uma chamada única de resumo com o `gemma4:12b` fica em cerca de 8,5 GiB, dentro do que o cartão de modelos estima.
+
+- O cartão "Modelos recomendados" separa as duas funções. A lista do assistente passa a valer só para **resumo e organização** ("Usar nos resumos"). Um bloco novo, "Ajuda ao vivo (durante a reunião)", recomenda sempre o `llama3.2`. Antes, um clique em "Usar" punha o mesmo modelo grande nas duas funções.
+- Quem já usa um modelo bem mais pesado na ajuda ao vivo vê um aviso, uma vez por modelo, com o botão "Usar Llama 3.2" (só aparece se ele já estiver baixado). Nada é trocado sem clique.
+- O prompt da ajuda ao vivo foi reordenado: a conversa vem antes e só cresce no fim; contexto automático, fontes e sugestões já mostradas vêm depois dela. A janela guarda 75 segundos depois de um corte e só corta de novo ao passar de 180 segundos.
+- Ao parar a gravação, o app pede ao Ollama para descarregar o modelo da ajuda ao vivo, a menos que ele seja o mesmo do resumo.
+- Limites: o teto de 16 GiB só foi medido neste Mac de 24 GB. Com o prompt novo a memória do `llama3.2` ainda sobe um pouco a cada corte da janela. A qualidade das sugestões com a nova ordem do prompt não foi comparada com a anterior. Nada disso foi exercitado no app aberto, só em testes automatizados e num script de carga.

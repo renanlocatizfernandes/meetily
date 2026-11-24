@@ -91,6 +91,10 @@ pub struct AdvisorReport {
     /// A voice model is installed, chosen and switched on.
     pub voice_model_enabled: bool,
     pub ollama: OllamaState,
+    /// Ollama tag suggested for the live help, which runs during the meeting
+    /// next to the speech and voice models. The assistant role is the model
+    /// of the summaries, which run after it.
+    pub live_help_model: String,
     pub roles: Vec<RoleReport>,
 }
 
@@ -196,6 +200,7 @@ pub fn build_report(hardware: Hardware, language: &str, installed: &Installed, o
         total_memory_mb: recommendation.total_memory_mb,
         voice_model_enabled: installed.voice_current.is_some(),
         ollama,
+        live_help_model: catalog::LIVE_HELP_MODEL.to_string(),
         roles,
     }
 }
@@ -381,6 +386,7 @@ mod tests {
         assert_eq!(json["hardware"]["ramGb"], 8);
         assert_eq!(json["hardware"]["appleSilicon"], true);
         assert_eq!(json["tier"], "light");
+        assert_eq!(json["liveHelpModel"], "llama3.2:latest");
         assert_eq!(json["budgetMb"], 4_500);
         assert_eq!(json["ollama"]["installedModels"].as_array().unwrap().len(), 0);
         assert_eq!(json["roles"][0]["role"], "speech");

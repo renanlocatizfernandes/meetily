@@ -110,6 +110,49 @@ pub(crate) fn build_native_chat_body(model: &str, system_prompt: &str, user_prom
     })
 }
 
+fn ollama_host(endpoint: Option<&str>) -> &str {
+    endpoint
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(DEFAULT_OLLAMA_ENDPOINT)
+        .trim_end_matches('/')
+}
+
+/// True when `/api/ps` lists `model` among the loaded ones.
+pub(crate) fn ps_lists_model(body: &serde_json::Value, model: &str) -> bool {
+    body.get("models").and_then(|models| models.as_array()).is_some_and(|models| {
+        models.iter().any(|entry| {
+            ["name", "model"].iter().any(|key| entry.get(key).and_then(|value| value.as_str()) == Some(model))
+        })
+    })
+}
+
+/// Asks Ollama to drop `model` from memory now instead of after its idle
+/// time. During a meeting Ollama's prompt cache grows with every live call
+/// (several GB in minutes); this gives the memory back when the meeting ends.
+/// Nothing is sent when the model is not loaded, so it is never loaded just
+/// to be dropped. Returns true when Ollama accepted the request.
+pub async fn unload_ollama_model(client: &Client, endpoint: Option<&str>, model: &str) -> bool {
+    const WAIT: Duration = Duration::from_secs(5);
+    let host = ollama_host(endpoint);
+    let loaded = match client.get(format!("{host}/api/ps")).timeout(WAIT).send().await {
+        Ok(response) if response.status().is_success() => response
+            .json::<serde_json::Value>()
+            .await
+            .map(|body| ps_lists_model(&body, model))
+            .unwrap_or(false),
+        _ => false,
+    };
+    if !loaded {
+        return false;
+    }
+    let body = serde_json::json!({ "model": model, "keep_alive": 0 });
+    matches!(
+        client.post(format!("{host}/api/generate")).timeout(WAIT).json(&body).send().await,
+        Ok(response) if response.status().is_success()
+    )
+}
+
 /// Reads one line of the event stream.
 pub(crate) fn parse_sse_line(line: &str) -> SseEvent {
     let line = line.trim();
@@ -189,11 +232,7 @@ async fn open_stream(
     system_prompt: &str,
     user_prompt: &str,
 ) -> Result<reqwest::Response, StreamError> {
-    let host = endpoint
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(DEFAULT_OLLAMA_ENDPOINT)
-        .trim_end_matches('/');
+    let host = ollama_host(endpoint);
 
     // Native endpoint first: it lets us cap the context window. Anything that
     // is not a plain success falls back to the OpenAI-compatible call below,
@@ -352,6 +391,18 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_model_is_unloaded_only_when_ollama_lists_it_as_loaded() {
+        let body = serde_json::json!({ "models": [{ "name": "llama3.2:latest", "model": "llama3.2:latest" }] });
+        assert!(ps_lists_model(&body, "llama3.2:latest"));
+        assert!(!ps_lists_model(&body, "gemma4:12b"));
+        assert!(!ps_lists_model(&serde_json::json!({ "models": [] }), "llama3.2:latest"));
+        assert!(!ps_lists_model(&serde_json::json!({}), "llama3.2:latest"));
+        assert_eq!(ollama_host(Some(" http://127.0.0.1:11434/ ")), "http://127.0.0.1:11434");
+        assert_eq!(ollama_host(Some("  ")), DEFAULT_OLLAMA_ENDPOINT);
+        assert_eq!(ollama_host(None), DEFAULT_OLLAMA_ENDPOINT);
+    }
 
     #[test]
     fn reads_the_native_stream_and_caps_the_context() {

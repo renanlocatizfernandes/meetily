@@ -37,7 +37,7 @@ use super::usage::{
     economy_enabled, economy_gap, economy_starts_immediately, estimate_tokens, UsageMeter, UsageSnapshot,
     ECONOMY_GROUP_GAP, ECONOMY_MAX_RECENT_CHARS, ECONOMY_QUESTION_GAP,
 };
-use super::stream::{stream_ollama_chat, StreamError, StreamLimits};
+use super::stream::{stream_ollama_chat, unload_ollama_model, StreamError, StreamLimits};
 use super::target::{resolve_target, LlmTarget, SummaryHint};
 use super::trigger::{classify_segment, PauseWatch, TriggerKind, PAUSE_THRESHOLD};
 use super::window::{TranscriptPiece, TranscriptWindow};
@@ -468,6 +468,13 @@ pub fn on_recording_stopped<R: Runtime>(app: &AppHandle<R>) {
     app.unlisten(session.listener_id);
     session.pause_task.abort();
     session.context_task.abort();
+    // The local model is not needed until the next recording: give its memory back now.
+    let live_model = session.state.lock().ok().map(|guard| guard.settings.model.clone());
+    if let (Some(live_model), Ok(pool)) = (live_model, pool_of(app)) {
+        tauri::async_runtime::spawn(async move {
+            release_local_model(&pool, &live_model).await;
+        });
+    }
     if let Ok(mut slot) = LAST_CONTEXT.lock() {
         *slot = None;
     }
@@ -475,6 +482,24 @@ pub fn on_recording_stopped<R: Runtime>(app: &AppHandle<R>) {
         *slot = None;
     }
     emit_status(app, false, false, false, None);
+}
+
+/// Drops the live model from the local Ollama. A cloud provider has nothing to drop.
+async fn release_local_model(pool: &SqlitePool, live_model: &str) {
+    let hint = load_hint(pool).await;
+    let Ok(target) = resolve_target(&hint, live_model) else {
+        return;
+    };
+    if target.leaves_machine || target.provider != LLMProvider::Ollama {
+        return;
+    }
+    // The summary that follows the recording uses the same model: dropping it
+    // now would only make Ollama load it again in the middle of the summary.
+    if hint.model.trim() == target.model {
+        return;
+    }
+    let released = unload_ollama_model(&Client::new(), target.ollama_endpoint.as_deref(), &target.model).await;
+    debug!("Live assist model released after the recording; released={released}");
 }
 
 async fn refresh_settings(pool: &SqlitePool, state: &Mutex<SessionState>) -> bool {

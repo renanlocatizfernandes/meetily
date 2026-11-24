@@ -26,6 +26,7 @@ mod window;
 
 pub(crate) use service::load_hint as load_summary_hint;
 pub(crate) use target::resolve_target;
+pub(crate) use target::DEFAULT_MODEL as DEFAULT_LIVE_MODEL;
 
 pub use commands::{
     get_live_assist_smart_settings, get_live_assist_usage, live_assist_recap, live_assist_suggest_answer,

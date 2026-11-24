@@ -15,9 +15,8 @@ import {
   downloadKey,
   fitText,
   hardwareText,
+  liveHelpAdvice,
   memoryText,
-  summariesUseOllama,
-  usedInSummaries,
   type AdvisorEngine,
   type AdvisorModel,
   type AdvisorReport,
@@ -134,18 +133,22 @@ export function ModelAdvisorCard({ roles = ALL_ROLES, onChanged }: ModelAdvisorC
       if (!current.voiceModelEnabled) await safeInvoke('set_voice_model_enabled', { enabled: true });
       return true;
     }
+    // The assistant models of the list are the ones of the summaries.
+    return applyToSummaries(model);
+  };
+
+  /** The live help keeps its own model: it runs during the meeting, the summaries after it. */
+  const putInLiveHelp = async (model: AdvisorModel): Promise<boolean> => {
     try {
       await saveLiveSettings({ ...liveSettings, model: model.id });
+      return true;
     } catch {
       toast.error('Não foi possível trocar o modelo da ajuda ao vivo');
       return false;
     }
-    // Summaries that already run on a local Ollama model follow the change.
-    if (summariesUseOllama(current) && !usedInSummaries(model, current)) await applyToSummaries(model, false);
-    return true;
   };
 
-  const applyToSummaries = async (model: AdvisorModel, announce: boolean): Promise<boolean> => {
+  const applyToSummaries = async (model: AdvisorModel): Promise<boolean> => {
     const loaded = await safeInvoke<SummaryModelConfig | null>('api_get_model_config');
     const previous = loaded.ok ? loaded.value : null;
     const config: SummaryModelConfig = {
@@ -161,7 +164,6 @@ export function ModelAdvisorCard({ roles = ALL_ROLES, onChanged }: ModelAdvisorC
       return false;
     }
     safeEmit('model-config-updated', config);
-    if (announce) toast.success(`${model.name} em uso nos resumos`);
     return true;
   };
 
@@ -172,7 +174,7 @@ export function ModelAdvisorCard({ roles = ALL_ROLES, onChanged }: ModelAdvisorC
     return ['model_advisor_pull_ollama_model', { modelName: id }];
   };
 
-  const downloadAndUse = async (model: AdvisorModel) => {
+  const downloadAndUse = async (model: AdvisorModel, forLiveHelp = false) => {
     if (!report) return;
     const key = downloadKey(model.engine, model.id);
     cancelled.current.delete(key);
@@ -197,8 +199,8 @@ export function ModelAdvisorCard({ roles = ALL_ROLES, onChanged }: ModelAdvisorC
       await refresh();
       return;
     }
-    if (await putInUse(model, report)) {
-      toast.success(`${model.name} baixado e em uso`);
+    if (forLiveHelp ? await putInLiveHelp(model) : await putInUse(model, report)) {
+      toast.success(forLiveHelp ? `${model.name} baixado e em uso na ajuda ao vivo` : `${model.name} baixado e em uso`);
       onChanged?.();
     }
     await refresh();
@@ -213,11 +215,11 @@ export function ModelAdvisorCard({ roles = ALL_ROLES, onChanged }: ModelAdvisorC
     else await safeInvoke('model_advisor_cancel_ollama_pull', { modelName: model.id });
   };
 
-  const useNow = async (model: AdvisorModel) => {
+  const useNow = async (model: AdvisorModel, forLiveHelp = false) => {
     if (!report) return;
     setBusy(model.id);
-    if (await putInUse(model, report)) {
-      toast.success(`${model.name} em uso`);
+    if (forLiveHelp ? await putInLiveHelp(model) : await putInUse(model, report)) {
+      toast.success(forLiveHelp ? `${model.name} em uso na ajuda ao vivo` : `${model.name} em uso`);
       onChanged?.();
     }
     await refresh();
@@ -228,10 +230,8 @@ export function ModelAdvisorCard({ roles = ALL_ROLES, onChanged }: ModelAdvisorC
 
   const shown = report ? report.roles.filter((role) => roles.includes(role.role)) : [];
 
-  const renderAction = (model: AdvisorModel, compact: boolean) => {
-    if (!report) return null;
-    const key = downloadKey(model.engine, model.id);
-    const percent = downloads[key];
+  const renderProgress = (model: AdvisorModel) => {
+    const percent = downloads[downloadKey(model.engine, model.id)];
     if (percent !== undefined) {
       return (
         <div className="w-full space-y-2" role="status" aria-live="polite">
@@ -248,48 +248,33 @@ export function ModelAdvisorCard({ roles = ALL_ROLES, onChanged }: ModelAdvisorC
     if (model.downloading) {
       return <p className="text-sm text-muted-foreground">Download em andamento em outra tela.</p>;
     }
-    const action = actionFor(model, report, liveSettings?.model);
-    const summaryButton =
-      model.role === 'assistant' && model.installed && !usedInSummaries(model, report) ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={busy !== null}
-          onClick={async () => {
-            setBusy(model.id);
-            if (await applyToSummaries(model, true)) onChanged?.();
-            await refresh();
-            setBusy(null);
-          }}
-        >
-          Usar nos resumos
-        </Button>
-      ) : null;
+    return null;
+  };
+
+  const renderAction = (model: AdvisorModel, compact: boolean) => {
+    if (!report) return null;
+    const progress = renderProgress(model);
+    if (progress) return progress;
+    const forSummaries = model.role === 'assistant';
+    const action = actionFor(model, report);
     if (action === 'active') {
       return (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
-            <Check className="h-4 w-4" aria-hidden /> {model.role === 'assistant' ? 'Em uso na ajuda ao vivo' : 'Em uso'}
-          </span>
-          {summaryButton}
-        </div>
+        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
+          <Check className="h-4 w-4" aria-hidden /> {forSummaries ? 'Em uso nos resumos' : 'Em uso'}
+        </span>
       );
     }
     if (action === 'use') {
       return (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant={compact ? 'outline' : 'default'} size="sm" disabled={busy !== null} onClick={() => useNow(model)}>
-            {model.role === 'assistant' ? 'Usar na ajuda ao vivo' : 'Usar'}
-          </Button>
-          {summaryButton}
-        </div>
+        <Button type="button" variant={compact ? 'outline' : 'default'} size="sm" disabled={busy !== null} onClick={() => useNow(model)}>
+          {forSummaries ? 'Usar nos resumos' : 'Usar'}
+        </Button>
       );
     }
     if (action === 'download') {
       return (
         <Button type="button" variant={compact ? 'outline' : 'default'} size="sm" disabled={busy !== null} onClick={() => downloadAndUse(model)}>
-          <Download /> Baixar e usar
+          <Download /> {forSummaries ? 'Baixar e usar nos resumos' : 'Baixar e usar'}
         </Button>
       );
     }
@@ -297,6 +282,61 @@ export function ModelAdvisorCard({ roles = ALL_ROLES, onChanged }: ModelAdvisorC
       return <p className="text-sm text-muted-foreground">Abra o Ollama neste computador para baixar este modelo.</p>;
     }
     return null;
+  };
+
+  /** The live help: its own suggestion, apart from the list of the summaries. */
+  const renderLiveHelp = () => {
+    if (!report) return null;
+    const advice = liveHelpAdvice(report, liveSettings?.model);
+    if (!advice) return null;
+    const model = advice.recommended;
+    const progress = renderProgress(model);
+    return (
+      <div className="space-y-3 border-t border-border pt-4">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">Ajuda ao vivo (durante a reunião)</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">Em uso agora: {liveSettings?.model || 'não configurado'}</p>
+        </div>
+        {!advice.local ? (
+          <p className="text-sm text-muted-foreground">
+            Os resumos usam um serviço na nuvem, e a ajuda ao vivo segue o mesmo serviço. Nenhum modelo local é carregado durante a reunião.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm text-foreground">
+              <span className="font-medium">Recomendado: {model.name}</span>
+              <span className="text-muted-foreground"> · {model.installed ? 'Instalado' : `Download de ${bytesText(model.downloadBytes)}`} · {model.license}</span>
+            </p>
+            <p className="text-sm text-muted-foreground">
+              A ajuda ao vivo chama o modelo a cada poucos segundos, ao lado da transcrição, e o Ollama guarda um cache que cresce a cada chamada. Por isso
+              ela usa o modelo mais leve, e o modelo maior fica para os resumos, que rodam depois da reunião.
+            </p>
+            {advice.heavyCurrent && (
+              <p className="rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground" role="status">
+                A ajuda ao vivo está usando {advice.heavyCurrent}. Num Mac de 24 GB, modelos desse porte chegaram a 16 GB de memória em poucos minutos de
+                reunião. Troque para {model.name} e mantenha o modelo maior só nos resumos.
+              </p>
+            )}
+            {progress ??
+              (advice.action === 'active' ? (
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <Check className="h-4 w-4" aria-hidden /> Em uso na ajuda ao vivo
+                </span>
+              ) : advice.action === 'use' ? (
+                <Button type="button" size="sm" disabled={busy !== null} onClick={() => useNow(model, true)}>
+                  Usar na ajuda ao vivo
+                </Button>
+              ) : advice.action === 'download' ? (
+                <Button type="button" size="sm" disabled={busy !== null} onClick={() => downloadAndUse(model, true)}>
+                  <Download /> Baixar e usar na ajuda ao vivo
+                </Button>
+              ) : (
+                <p className="text-sm text-muted-foreground">Abra o Ollama neste computador para baixar este modelo.</p>
+              ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const modelFacts = (model: AdvisorModel) =>
@@ -307,10 +347,6 @@ export function ModelAdvisorCard({ roles = ALL_ROLES, onChanged }: ModelAdvisorC
     ].join(' · ');
 
   const currentText = (role: AdvisorRoleReport): string => {
-    if (role.role === 'assistant') {
-      const summary = role.current ? role.current.name : 'não configurado';
-      return `Ajuda ao vivo: ${liveSettings?.model || 'não configurado'} · Resumos: ${summary}`;
-    }
     if (role.role === 'voices') return role.current ? role.current.name : 'Método simples, sem modelo de vozes';
     return role.current ? role.current.name : 'Não configurado';
   };
@@ -322,7 +358,7 @@ export function ModelAdvisorCard({ roles = ALL_ROLES, onChanged }: ModelAdvisorC
           <h2 className="text-lg font-semibold text-foreground">Modelos recomendados para este Mac</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {report
-              ? `${hardwareText(report.hardware)}. Os três modelos rodam ao mesmo tempo na reunião, então a sugestão é o melhor conjunto que cabe junto na memória.`
+              ? `${hardwareText(report.hardware)}. Transcrição, vozes e ajuda ao vivo rodam ao mesmo tempo na reunião; o resumo roda depois. A sugestão é o melhor conjunto que cabe na memória.`
               : loadError
                 ? 'Não foi possível ler as informações deste computador.'
                 : 'Lendo as informações deste computador…'}
@@ -332,6 +368,8 @@ export function ModelAdvisorCard({ roles = ALL_ROLES, onChanged }: ModelAdvisorC
           <RefreshCw />
         </Button>
       </div>
+
+      {roles.includes('assistant') && renderLiveHelp()}
 
       {shown.map((role) => {
         const recommended = role.recommended;
@@ -394,8 +432,8 @@ export function ModelAdvisorCard({ roles = ALL_ROLES, onChanged }: ModelAdvisorC
       {report && shown.some((role) => role.role === 'assistant') && (
         <p className="border-t border-border pt-3 text-xs text-muted-foreground">
           {report.ollama.running
-            ? 'Os modelos de organização, ajuda e resumo são baixados pelo Ollama deste computador, sem custo. "Baixar e usar" troca o modelo da ajuda ao vivo; os resumos só mudam junto quando já usam um modelo local.'
-            : 'O Ollama não respondeu neste computador. Abra o Ollama para baixar ou trocar os modelos de organização, ajuda e resumo.'}
+            ? 'Os modelos da ajuda ao vivo e dos resumos são baixados pelo Ollama deste computador, sem custo. Cada botão troca só a função que ele nomeia.'
+            : 'O Ollama não respondeu neste computador. Abra o Ollama para baixar ou trocar os modelos da ajuda ao vivo e dos resumos.'}
         </p>
       )}
     </section>

@@ -6,6 +6,7 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { toast } from 'sonner';
 import { safeEmit, windowLabel } from '@/lib/tauriSafe';
+import { liveHelpAdvice, type AdvisorReport } from '@/lib/modelAdvisor';
 import {
   ITEM_ACTION_EVENT,
   STATE_REQUEST_EVENT,
@@ -245,6 +246,55 @@ export function LiveAssistProvider({ children }: { children: React.ReactNode }) 
     setSettings(saved);
     setStatus((current) => ({ ...current, enabled: saved.enabled }));
   }, []);
+
+  // Before the app suggested a model for the live help alone, the big model
+  // of the summaries was also put in the live help. Whoever still has it there
+  // is told once per model, with the switch one click away. Nothing changes
+  // without that click.
+  useEffect(() => {
+    const model = settings.model;
+    if (!settingsLoaded || !settings.enabled || !model || model === DEFAULT_SETTINGS.model) return;
+    const noticeKey = `live-assist-heavy-model-notice:${model}`;
+    try {
+      if (window.localStorage.getItem(noticeKey)) return;
+    } catch {
+      return;
+    }
+    let cancelled = false;
+    invoke<AdvisorReport>('model_advisor_get_report')
+      .then((report) => {
+        if (cancelled) return;
+        const advice = liveHelpAdvice(report, model);
+        if (!advice?.heavyCurrent) return;
+        try {
+          if (window.localStorage.getItem(noticeKey)) return;
+          window.localStorage.setItem(noticeKey, '1');
+        } catch {
+          return;
+        }
+        const light = advice.recommended;
+        toast.warning(`A ajuda ao vivo está usando ${advice.heavyCurrent}`, {
+          description: `Durante a reunião esse modelo pode ocupar a maior parte da memória. O recomendado para a ajuda ao vivo é ${light.name}; o modelo maior continua nos resumos.`,
+          duration: 30000,
+          action: light.installed
+            ? {
+                label: `Usar ${light.name}`,
+                onClick: () => {
+                  saveSettings({ ...settings, model: light.id })
+                    .then(() => toast.success(`${light.name} em uso na ajuda ao vivo`))
+                    .catch(() => toast.error('Não foi possível trocar o modelo da ajuda ao vivo'));
+                },
+              }
+            : undefined,
+        });
+      })
+      .catch(() => {
+        // The suggestion is optional: without the report nothing is shown.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [settingsLoaded, settings, saveSettings]);
 
   const pinItem = useCallback((id: string, pinned: boolean) => {
     setItems((current) => current.map((item) => (item.id === id ? { ...item, pinned } : item)));
