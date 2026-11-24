@@ -33,6 +33,14 @@ mod macos {
         fn CFArrayGetCount(array: *const c_void) -> isize;
         fn CFArrayGetValueAtIndex(array: *const c_void, index: isize) -> *const c_void;
         fn CFDictionaryGetValue(dictionary: *const c_void, key: *const c_void) -> *const c_void;
+        fn CFStringGetLength(string: *const c_void) -> isize;
+        fn CFStringGetMaximumSizeForEncoding(length: isize, encoding: u32) -> isize;
+        fn CFStringGetCString(
+            string: *const c_void,
+            buffer: *mut u8,
+            buffer_size: isize,
+            encoding: u32,
+        ) -> u8;
     }
 
     pub fn capture() -> (Vec<ObservedWindow>, Vec<ObservedInput>) {
@@ -99,8 +107,56 @@ mod macos {
             if CFGetTypeID(value) != CFStringGetTypeID() {
                 return None;
             }
-            let string = &*(value as *const cidre::cf::String);
-            Some(string.to_string())
+            // Textos curtos chegam como ponteiro marcado (endereço ímpar): só
+            // as funções do CoreFoundation podem lê-los, nunca uma referência Rust.
+            let capacity =
+                CFStringGetMaximumSizeForEncoding(CFStringGetLength(value), UTF8_ENCODING);
+            if capacity < 0 {
+                return None;
+            }
+            let mut buffer = vec![0u8; capacity as usize + 1];
+            if CFStringGetCString(value, buffer.as_mut_ptr(), buffer.len() as isize, UTF8_ENCODING)
+                == 0
+            {
+                return None;
+            }
+            let end = buffer.iter().position(|byte| *byte == 0).unwrap_or(buffer.len());
+            buffer.truncate(end);
+            String::from_utf8(buffer).ok()
+        }
+    }
+
+    const UTF8_ENCODING: u32 = 0x0800_0100;
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[link(name = "CoreFoundation", kind = "framework")]
+        extern "C" {
+            fn CFStringCreateWithCString(
+                allocator: *const c_void,
+                text: *const u8,
+                encoding: u32,
+            ) -> *const c_void;
+        }
+
+        #[test]
+        fn reads_short_and_long_strings() {
+            // "Zoom" cabe num ponteiro marcado; o texto longo, com acento, não.
+            for text in ["Zoom", "Reunião semanal de planejamento da equipe — sala 2"] {
+                let bytes = format!("{text}\0");
+                let value = unsafe {
+                    CFStringCreateWithCString(std::ptr::null(), bytes.as_ptr(), UTF8_ENCODING)
+                };
+                assert_eq!(cf_string(value).as_deref(), Some(text));
+                unsafe { CFRelease(value) };
+            }
+        }
+
+        #[test]
+        fn ignores_null() {
+            assert_eq!(cf_string(std::ptr::null()), None);
         }
     }
 }
