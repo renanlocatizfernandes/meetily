@@ -61,13 +61,15 @@ export interface AdvisorReport {
   totalMemoryMb: number;
   voiceModelEnabled: boolean;
   ollama: { endpoint: string; running: boolean; installedModels: string[] };
+  /** Ollama tag suggested for the live help. Absent in a core older than this screen. */
+  liveHelpModel?: string;
   roles: AdvisorRoleReport[];
 }
 
 export const ROLE_LABEL: Record<AdvisorRole, string> = {
   speech: 'Fala (transcrição)',
   voices: 'Vozes (quem está falando)',
-  assistant: 'Organização, ajuda e resumo',
+  assistant: 'Organização e resumo (depois da reunião)',
 };
 
 const FIT_TEXT: Record<AdvisorFit, string> = {
@@ -115,17 +117,65 @@ export function downloadKey(engine: AdvisorEngine, id: string): string {
 export type AdvisorAction = 'active' | 'use' | 'download' | 'needsOllama' | 'unavailable';
 
 /**
- * What the button of a model does. `liveModel` is the model of the live help,
- * which keeps its own setting; for the assistant a model counts as in use
- * when the live help uses it.
+ * What the button of a model does. For the assistant the models of this list
+ * are the ones of the summaries, so "in use" means in use in the summaries;
+ * the live help has its own suggestion (`liveHelpAdvice`).
  */
-export function actionFor(model: AdvisorModel, report: AdvisorReport, liveModel?: string | null): AdvisorAction {
+export function actionFor(model: AdvisorModel, report: AdvisorReport): AdvisorAction {
   if (model.fit !== 'fits') return model.installed ? 'use' : 'unavailable';
-  const active = model.role === 'assistant' ? liveModel === model.id : model.active;
-  if (active) return 'active';
+  if (model.active) return 'active';
   if (model.installed) return 'use';
   if (model.engine === 'ollama' && !report.ollama.running) return 'needsOllama';
   return 'download';
+}
+
+const CLOUD_PROVIDERS = ['openai', 'claude', 'groq', 'openrouter', 'custom-openai'];
+
+/** A catalog model this much bigger than the suggested one is called heavy for the live help. */
+const HEAVY_FOR_LIVE_HELP = 1.5;
+
+export interface LiveHelpAdvice {
+  /** The suggested model, as the catalog describes it. */
+  recommended: AdvisorModel;
+  /** The live help already uses the suggested model. */
+  inUse: boolean;
+  /** The live help runs on this computer (the summaries are not on a cloud provider). */
+  local: boolean;
+  /**
+   * Name of the catalog model the live help uses now, when it is much bigger
+   * than the suggested one: during a meeting it takes several times the
+   * memory. Null when there is nothing to warn about.
+   */
+  heavyCurrent: string | null;
+  action: AdvisorAction;
+}
+
+/**
+ * The live help runs during the meeting, next to the speech and voice models,
+ * and calls the model every few seconds; the summaries run after it. So the
+ * live help gets the lightest model whatever the summaries use. Null when the
+ * core did not send a suggestion.
+ */
+export function liveHelpAdvice(report: AdvisorReport, liveModel?: string | null): LiveHelpAdvice | null {
+  const assistant = report.roles.find((role) => role.role === 'assistant');
+  if (!assistant || !report.liveHelpModel) return null;
+  const catalog = [assistant.recommended, ...assistant.others].filter((model): model is AdvisorModel => !!model);
+  const recommended = catalog.find((model) => model.id === report.liveHelpModel);
+  if (!recommended) return null;
+  const provider = assistant.current?.provider?.trim().toLowerCase() ?? '';
+  const local = !CLOUD_PROVIDERS.includes(provider);
+  const current = (liveModel ?? '').trim();
+  const inUse = current === recommended.id;
+  const known = catalog.find((model) => model.id === current);
+  const heavy = local && !!known && known.downloadBytes > recommended.downloadBytes * HEAVY_FOR_LIVE_HELP;
+  const action: AdvisorAction = inUse
+    ? 'active'
+    : recommended.installed
+      ? 'use'
+      : report.ollama.running
+        ? 'download'
+        : 'needsOllama';
+  return { recommended, inUse, local, heavyCurrent: heavy && known ? known.name : null, action };
 }
 
 /** The summaries use this Ollama model. */

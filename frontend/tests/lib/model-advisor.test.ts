@@ -5,6 +5,7 @@ import {
   downloadKey,
   fitText,
   hardwareText,
+  liveHelpAdvice,
   memoryText,
   summariesUseOllama,
   usedInSummaries,
@@ -73,24 +74,25 @@ describe('model advisor text', () => {
 
 describe('model advisor actions', () => {
   test('nothing is downloaded or switched without a button: the action only names it', () => {
-    expect(actionFor(model(), report(), 'llama3.2:latest')).toBe('download');
-    expect(actionFor(model({ installed: true }), report(), 'llama3.2:latest')).toBe('use');
-    expect(actionFor(model({ installed: true }), report(), 'gemma4:e4b')).toBe('active');
+    expect(actionFor(model(), report())).toBe('download');
+    expect(actionFor(model({ installed: true }), report())).toBe('use');
+    // For the assistant "in use" is in use in the summaries, as the core says.
+    expect(actionFor(model({ installed: true, active: true }), report())).toBe('active');
   });
 
   test('an Ollama model needs Ollama running to be downloaded', () => {
     const stopped = report({ ollama: { endpoint: 'http://localhost:11434', running: false, installedModels: [] } });
-    expect(actionFor(model(), stopped, null)).toBe('needsOllama');
+    expect(actionFor(model(), stopped)).toBe('needsOllama');
   });
 
   test('a model that does not fit is not offered for download', () => {
-    expect(actionFor(model({ fit: 'doesNotFitTogether' }), report(), null)).toBe('unavailable');
-    expect(actionFor(model({ fit: 'tooLittleMemory', installed: true }), report(), null)).toBe('use');
+    expect(actionFor(model({ fit: 'doesNotFitTogether' }), report())).toBe('unavailable');
+    expect(actionFor(model({ fit: 'tooLittleMemory', installed: true }), report())).toBe('use');
   });
 
   test('speech and voices follow the active flag from the core', () => {
     const speech = model({ id: 'parakeet-tdt-0.6b-v3-int8', role: 'speech', engine: 'parakeet', installed: true, active: true });
-    expect(actionFor(speech, report(), 'parakeet-tdt-0.6b-v3-int8')).toBe('active');
+    expect(actionFor(speech, report())).toBe('active');
     expect(actionFor({ ...speech, active: false }, report())).toBe('use');
     expect(downloadKey('parakeet', speech.id)).toBe('parakeet:parakeet-tdt-0.6b-v3-int8');
   });
@@ -101,5 +103,66 @@ describe('model advisor actions', () => {
     expect(usedInSummaries(model({ id: 'llama3.2:latest' }), report())).toBe(true);
     const cloud = report({ roles: [{ role: 'assistant', current: { provider: 'claude', model: 'x', name: 'x', inCatalog: false }, recommended: model(), reason: '', others: [] }] });
     expect(summariesUseOllama(cloud)).toBe(false);
+  });
+});
+
+describe('live help suggestion', () => {
+  const llama = model({ id: 'llama3.2:latest', name: 'Llama 3.2 3B', downloadBytes: 2_019_392_628, installed: true });
+  const gemma12 = model({ id: 'gemma4:12b', name: 'Gemma 4 12B', downloadBytes: 8_021_618_699, installed: true, active: true });
+  const granite = model({ id: 'granite4.2:3b', name: 'Granite 4.2 3B', downloadBytes: 2_244_023_548 });
+  const withLiveHelp = (overrides: Partial<AdvisorReport> = {}) =>
+    report({
+      liveHelpModel: 'llama3.2:latest',
+      roles: [
+        {
+          role: 'assistant',
+          current: { provider: 'ollama', model: 'gemma4:12b', name: 'Gemma 4 12B', inCatalog: true },
+          recommended: gemma12,
+          reason: '',
+          others: [llama, granite],
+        },
+      ],
+      ...overrides,
+    });
+
+  test('the live help gets the light model whatever the summaries use', () => {
+    const advice = liveHelpAdvice(withLiveHelp(), 'llama3.2:latest');
+    expect(advice?.recommended.id).toBe('llama3.2:latest');
+    expect(advice?.inUse).toBe(true);
+    expect(advice?.action).toBe('active');
+    expect(advice?.heavyCurrent).toBeNull();
+  });
+
+  test('a big model in the live help is called out, with the switch one click away', () => {
+    const advice = liveHelpAdvice(withLiveHelp(), 'gemma4:12b');
+    expect(advice?.heavyCurrent).toBe('Gemma 4 12B');
+    expect(advice?.action).toBe('use');
+  });
+
+  test('a model of about the same size or outside the catalog is not called heavy', () => {
+    expect(liveHelpAdvice(withLiveHelp(), 'granite4.2:3b')?.heavyCurrent).toBeNull();
+    expect(liveHelpAdvice(withLiveHelp(), 'meu-modelo:1b')?.heavyCurrent).toBeNull();
+    expect(liveHelpAdvice(withLiveHelp(), '')?.action).toBe('use');
+  });
+
+  test('the suggested model is downloaded through Ollama when it is missing', () => {
+    const missing = withLiveHelp();
+    missing.roles[0].others = [{ ...llama, installed: false }, granite];
+    expect(liveHelpAdvice(missing, 'gemma4:12b')?.action).toBe('download');
+    const stopped = { ...missing, ollama: { endpoint: 'http://localhost:11434', running: false, installedModels: [] } };
+    expect(liveHelpAdvice(stopped, 'gemma4:12b')?.action).toBe('needsOllama');
+  });
+
+  test('with the summaries on a cloud provider nothing local runs in the meeting', () => {
+    const cloud = withLiveHelp();
+    cloud.roles[0].current = { provider: 'Claude', model: 'claude-sonnet', name: 'claude-sonnet', inCatalog: false };
+    const advice = liveHelpAdvice(cloud, 'gemma4:12b');
+    expect(advice?.local).toBe(false);
+    expect(advice?.heavyCurrent).toBeNull();
+  });
+
+  test('an older core that sends no suggestion shows nothing', () => {
+    expect(liveHelpAdvice(report(), 'gemma4:12b')).toBeNull();
+    expect(liveHelpAdvice(withLiveHelp({ liveHelpModel: 'outro:1b' }), 'gemma4:12b')).toBeNull();
   });
 });

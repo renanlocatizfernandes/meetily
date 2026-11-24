@@ -14,6 +14,23 @@
 //! Ollama chose by itself on that 24 GB machine). The other Ollama figures
 //! come from `ollama_memory_mb`, fitted to those three points, and were not
 //! measured. Whisper and voice figures are the weights plus working buffers.
+//!
+//! Those Ollama figures hold for a few calls, which is how summaries use a
+//! model. The live help calls the model every few seconds with a prompt that
+//! changes, and Ollama 0.40.16 keeps a prompt cache that grows with every
+//! call. Measured on the same M5 Pro (24 GB) on 2026-11-23, with prompts of
+//! about 1,700 tokens and a context of 4,096:
+//! - `gemma4:12b`, `gemma4:e4b` and `qwen3.5:9b` run on Ollama's MLX runner on
+//!   Apple Silicon. Each started near its weights (7.5 to 9 GiB) and reached
+//!   15 GiB held, 16 GiB at the peak, in five to eight minutes, whatever the
+//!   context asked for.
+//! - `llama3.2:latest` (GGUF, llama.cpp runner) went from 0.6 GiB to 9 GiB of
+//!   process memory in four minutes with the prompt the live help sent then
+//!   (a window that slid on every call) and stayed there. With the talk only
+//!   growing at the end between trims, as the live help sends it now, the same
+//!   load was at 3.2 GiB after nine minutes (144 calls).
+//! That is why the live help has its own suggestion (`LIVE_HELP_MODEL`) and
+//! the assistant models below are suggested for the summaries only.
 
 use serde::Serialize;
 
@@ -29,6 +46,10 @@ pub enum Role {
 }
 
 pub const ROLES: [Role; 3] = [Role::Speech, Role::Voices, Role::Assistant];
+
+/// The model suggested for the live help on every machine: the lightest one
+/// of the catalog, served by the llama.cpp runner (see the module note).
+pub const LIVE_HELP_MODEL: &str = "llama3.2:latest";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -552,6 +573,14 @@ mod tests {
             assert_eq!(ids.len(), ids.iter().collect::<HashSet<_>>().len(), "{role:?}");
             assert!(of_role(role).any(|model| model.min_ram_gb <= 8 && model.rank_pt > 0), "{role:?}");
         }
+    }
+
+    #[test]
+    fn the_live_help_model_is_the_lightest_assistant_and_the_default_of_the_live_help() {
+        let live = find(Role::Assistant, LIVE_HELP_MODEL).expect("in the catalog");
+        assert!(of_role(Role::Assistant).all(|model| model.download_bytes >= live.download_bytes));
+        assert_eq!(live.min_ram_gb, 8);
+        assert_eq!(LIVE_HELP_MODEL, crate::live_assist::DEFAULT_LIVE_MODEL);
     }
 
     #[test]
