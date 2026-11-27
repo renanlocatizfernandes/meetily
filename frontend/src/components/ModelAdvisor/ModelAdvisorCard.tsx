@@ -352,11 +352,11 @@ export function ModelAdvisorCard({ roles = ALL_ROLES, onChanged }: ModelAdvisorC
   };
 
   return (
-    <section className="mb-6 space-y-4 rounded-xl border border-border bg-card p-6 text-card-foreground">
+    <section className="mt-4 space-y-4 rounded-xl border bg-card p-5 text-card-foreground first:mt-0">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Modelos recomendados para este Mac</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h2 className="text-sm font-medium">Modelos recomendados para este Mac</h2>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
             {report
               ? `${hardwareText(report.hardware)}. Transcrição, vozes e ajuda ao vivo rodam ao mesmo tempo na reunião; o resumo roda depois. A sugestão é o melhor conjunto que cabe na memória.`
               : loadError

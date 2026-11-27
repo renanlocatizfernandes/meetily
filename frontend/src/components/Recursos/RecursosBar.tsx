@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SettingsCard, SettingRow, SettingSwitch } from '@/components/settings/SettingsCard';
 import { FeatureToggles, useFeatures } from '@/contexts/FeatureContext';
 import { useLiveAssist } from '@/contexts/LiveAssistContext';
 import { useTranscripts } from '@/contexts/TranscriptContext';
@@ -160,32 +162,40 @@ export function RecursosBar() {
 export function RecursosSettings() {
   const { toggles, setToggle } = useFeatures();
   return (
-    <div className="mt-6 space-y-4 rounded-xl border bg-card p-5">
+    <SettingsCard
+      title="Recursos"
+      description="Tudo começa ligado, menos a tradução, que fica automática: só entra quando a fala parece inglês ou espanhol. A pesquisa na internet manda apenas o termo para a Wikipédia e o DuckDuckGo, sem chave. O resto fica nesta máquina, salvo o provedor de resumo que você já configurou."
+      className="mt-4 first:mt-0"
+    >
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Recursos</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Tudo começa ligado, menos a tradução, que fica automática: só entra quando a fala parece inglês ou espanhol. A pesquisa na internet manda apenas o termo para a Wikipédia e o DuckDuckGo, sem chave. O resto fica nesta máquina, salvo o provedor de resumo que você já configurou.
-        </p>
+        {SWITCHES.map((item) => (
+          <SettingSwitch
+            key={item.key}
+            id={`recursos-${item.key}`}
+            label={item.label}
+            checked={Boolean(toggles[item.key])}
+            onCheckedChange={() => setToggle({ [item.key]: !toggles[item.key] }).catch(() => toast.error('Não foi possível salvar'))}
+          />
+        ))}
+        <SettingRow id="recursos-translation" label="Tradução ao vivo">
+          <Select
+            value={toggles.translation}
+            onValueChange={(value) => setToggle({ translation: value as FeatureToggles['translation'] }).catch(() => toast.error('Não foi possível salvar'))}
+          >
+            <SelectTrigger id="recursos-translation" className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Automática</SelectItem>
+              <SelectItem value="on">Sempre</SelectItem>
+              <SelectItem value="off">Desligada</SelectItem>
+            </SelectContent>
+          </Select>
+        </SettingRow>
       </div>
-      {SWITCHES.map((item) => (
-        <label key={item.key} className="flex items-center justify-between gap-4 text-sm">
-          <span>{item.label}</span>
-          <input type="checkbox" checked={Boolean(toggles[item.key])} onChange={() => setToggle({ [item.key]: !toggles[item.key] }).catch(() => toast.error('Não foi possível salvar'))} />
-        </label>
-      ))}
-      <label className="flex items-center justify-between gap-4 text-sm">
-        <span>Tradução ao vivo</span>
-        <select
-          className="rounded border border-input bg-background px-2 py-1"
-          value={toggles.translation}
-          onChange={(event) => setToggle({ translation: event.target.value as FeatureToggles['translation'] }).catch(() => toast.error('Não foi possível salvar'))}
-        >
-          <option value="auto">Automática</option>
-          <option value="on">Sempre</option>
-          <option value="off">Desligada</option>
-        </select>
-      </label>
-      <p className="text-sm text-amber-800">Pesquisa na internet: só o termo sai da máquina. Avise as outras pessoas de que a reunião está sendo gravada.</p>
-    </div>
+      <p className="mt-4 rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-[13px] text-warning">
+        Pesquisa na internet: só o termo sai da máquina. Avise as outras pessoas de que a reunião está sendo gravada.
+      </p>
+    </SettingsCard>
   );
 }

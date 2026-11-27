@@ -17,7 +17,8 @@ use tokio_util::sync::CancellationToken;
 use crate::state::AppState;
 
 use super::classify::{
-    build_user_prompt, clean_name_list, heuristic_classification, match_known_client, merge_known_client,
+    build_user_prompt, clean_name_list, find_known_client_in_text, heuristic_classification, match_known_client,
+    merge_known_client,
     parse_classification, Classification, PromptInput, Rules, MIN_TRANSCRIPT_WORDS, RETRY_SUFFIX, SYSTEM_PROMPT,
 };
 use super::model::{
@@ -382,6 +383,17 @@ pub async fn organize<R: Runtime>(
     let summary = store::summary_markdown(pool, meeting_id).await.map_err(db_error)?;
     let settings = store::load_settings(pool).await.map_err(db_error)?;
     let context = live_assist_context(pool, current.created).await;
+    // Um título que ainda é o de origem (nome da reunião no Teams, por
+    // exemplo) ajuda a achar o cliente.
+    let context = if current.title_source == "default" && !crate::workspace::is_generic_title(&current.title) {
+        let line = format!("Nome da reunião: {}", current.title.trim());
+        Some(match context {
+            Some(context) => format!("{line}\n{context}"),
+            None => line,
+        })
+    } else {
+        context
+    };
     let when = local_time(current.created);
     let date_label = when.format("%d/%m/%Y %H:%M").to_string();
 
@@ -404,7 +416,29 @@ pub async fn organize<R: Runtime>(
         known_clients: &settings.known_clients,
         categories: &settings.categories,
     };
-    let (classification, from_model) = classify(app, pool, meeting_id, &input, &rules, options.cancel).await?;
+    let (mut classification, from_model) = classify(app, pool, meeting_id, &input, &rules, options.cancel).await?;
+    // Apelidos viram o nome oficial; o domínio de e-mail dos participantes
+    // vale mais que o texto; sem cliente, um apelido dito na conversa serve.
+    let client_rules = crate::workspace::clients::load_rules(pool).await.unwrap_or_default();
+    if let Some(official) = classification
+        .client
+        .as_deref()
+        .and_then(|name| crate::workspace::clients::canonical_client(&client_rules, name))
+    {
+        classification.client = Some(official);
+    }
+    if let Ok(Some(by_domain)) = crate::workspace::clients::client_from_participants(pool, meeting_id).await {
+        classification.client = Some(by_domain);
+    } else if classification.client.is_none() {
+        let aliases = crate::workspace::clients::alias_index(&client_rules);
+        let names: Vec<String> = aliases.iter().map(|(alias, _)| alias.clone()).collect();
+        if let Some(found) = find_known_client_in_text(&evidence, &names) {
+            classification.client = aliases
+                .iter()
+                .find(|(alias, _)| fold(alias) == fold(&found))
+                .map(|(_, official)| official.clone());
+        }
+    }
 
     // The model can take a while: read the row again so a rename or a manual
     // classification made meanwhile is respected.

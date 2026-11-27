@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
-import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { SettingsCard, SettingSwitch } from '@/components/settings/SettingsCard';
 import { AutoRecordMode, AutoRecordModeControl, isAutoRecordMode } from '@/components/AutoRecord/AutoRecordModeControl';
 
 interface Watch {
@@ -82,44 +83,47 @@ export function AutoRecordSettings() {
   };
 
   return (
-    <div className="mx-auto mt-8 max-w-2xl space-y-4 rounded-xl border border-gray-200 bg-white p-6">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">Gravação automática</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          No macOS, o Meetily Live Plus observa se o Microsoft Teams, o Zoom ou o Google Meet está numa chamada e começa a gravar sozinho, com a ajuda ao vivo. A gravação aparece na tela. Avise as outras pessoas que a reunião está sendo gravada.
-        </p>
-      </div>
+    <SettingsCard
+      title="Gravação automática"
+      description="No macOS, o Meetily Live Plus observa se o Microsoft Teams, o Zoom ou o Google Meet está numa chamada e começa a gravar sozinho, com a ajuda ao vivo. A gravação aparece na tela."
+      className="mt-4 first:mt-0"
+    >
+      <div className="space-y-4">
       {mode !== null ? (
         <div className="space-y-2">
           <span id="auto-record-mode-label" className="text-sm font-medium text-foreground">Quando uma reunião começar</span>
           <AutoRecordModeControl value={mode} onChange={changeMode} disabled={!loaded} labelledBy="auto-record-mode-label" />
         </div>
       ) : (
-      <label className="flex items-center justify-between gap-4">
-        <span className="text-sm font-medium text-gray-800">Gravar quando uma reunião começar</span>
-        <Switch checked={enabled} disabled={!loaded} onCheckedChange={toggle} />
-      </label>
+        <SettingSwitch
+          id="auto-record-enabled"
+          label="Gravar quando uma reunião começar"
+          checked={enabled}
+          disabled={!loaded}
+          onCheckedChange={toggle}
+        />
       )}
-      <p className="text-sm text-amber-800">
+      <p className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-[13px] text-warning">
         Avise as outras pessoas que esta reunião está sendo gravada.
       </p>
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
+      <div className="rounded-lg border bg-muted p-3 text-[13px] text-foreground">
         <div className="font-medium">Status agora</div>
-        <p className="mt-1">{watch?.hint || 'Lendo o que o Mac está vendo…'}</p>
+        <p className="mt-1 text-muted-foreground">{watch?.hint || 'Lendo o que o Mac está vendo…'}</p>
         {watch?.phase === 'arming' && (
-          <p className="mt-1">Contador: {watch.secondsLeft ?? 0}s para começar.</p>
+          <p className="mt-1 text-muted-foreground">Contador: {watch.secondsLeft ?? 0}s para começar.</p>
         )}
-        <button type="button" className="mt-2 rounded-md border border-gray-300 bg-white px-3 py-1 text-xs" onClick={refresh}>
+        <Button type="button" variant="outline" size="sm" className="mt-2" onClick={refresh}>
           Verificar agora
-        </button>
+        </Button>
       </div>
-      <ol className="list-decimal space-y-1 pl-5 text-sm text-gray-700">
+      <ol className="list-decimal space-y-1 pl-5 text-[13px] text-muted-foreground">
         <li>{mode !== null ? 'Escolha “Perguntar antes de gravar” ou “Gravar sozinho”.' : 'Deixe “Gravar quando uma reunião começar” ligado.'}</li>
         <li>No Mac: Ajustes → Privacidade → Microfone e Gravação de Tela e Áudio do Sistema, ambos para o Meetily Live Plus. Reabra o app depois.</li>
         <li>Teams: clique em Reunir agora. Pode ser uma reunião só sua. Se o título da janela não mudar, tire o mudo do microfone do Teams.</li>
         <li>Zoom: entre numa sala. Meet: entre numa chamada (o título fica “Meet - …” ).</li>
         <li>{mode === 'ask' ? 'O status acima deve mudar na hora e um aviso pergunta se você quer gravar.' : 'O status acima deve mudar na hora. O contador dura cerca de 12 segundos e então o aviso vermelho aparece com Parar.'}</li>
       </ol>
-    </div>
+      </div>
+    </SettingsCard>
   );
 }

@@ -284,6 +284,23 @@ async fn delete_meeting_with_transaction(
         .execute(&mut *transaction)
         .await?;
 
+    // Rows kept by newer features, which have no foreign key. Tasks typed by
+    // hand or already done are kept, detached from the meeting.
+    for statement in [
+        "DELETE FROM speaker_aliases WHERE meeting_id = ?",
+        "DELETE FROM autopilot_results WHERE meeting_id = ?",
+        "DELETE FROM meeting_participants WHERE meeting_id = ?",
+        "DELETE FROM task_runs WHERE meeting_id = ?",
+        "DELETE FROM obsidian_notes WHERE meeting_id = ?",
+        "DELETE FROM tasks WHERE meeting_id = ? AND source = 'auto' AND status = 'open' AND edited = 0",
+        "UPDATE tasks SET meeting_id = NULL WHERE meeting_id = ?",
+    ] {
+        sqlx::query(statement)
+            .bind(meeting_id)
+            .execute(&mut *transaction)
+            .await?;
+    }
+
     // 4. Finally, delete the meeting
     let result = sqlx::query("DELETE FROM meetings WHERE id = ?")
         .bind(meeting_id)

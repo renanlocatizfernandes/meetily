@@ -3,7 +3,20 @@
 import { Transcript, TranscriptSegmentData } from '@/types';
 import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptView';
 import { TranscriptButtonGroup } from './TranscriptButtonGroup';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { ConversationView } from './ConversationView';
+import { PeopleAndTasks } from './PeopleAndTasks';
+import { cn } from '@/lib/utils';
+
+type PanelView = 'chat' | 'transcript' | 'people';
+
+const VIEWS: Array<{ value: PanelView; label: string; short?: string }> = [
+  { value: 'chat', label: 'Conversa' },
+  { value: 'transcript', label: 'Transcrição' },
+  { value: 'people', label: 'Pessoas e tarefas', short: 'Pessoas' },
+];
+
+const VIEW_KEY = 'meetily.meetingDetails.leftView';
 
 interface TranscriptPanelProps {
   transcripts: Transcript[];
@@ -67,8 +80,76 @@ export function TranscriptPanel({
     }));
   }, [transcripts, usePagination, segments]);
 
+  const [view, setView] = useState<PanelView>('transcript');
+  const [speakersVersion, setSpeakersVersion] = useState(0);
+  const canSwitch = !!meetingId && !isRecording;
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(VIEW_KEY);
+      if (stored && VIEWS.some((item) => item.value === stored)) setView(stored as PanelView);
+    } catch {
+      // Preferência opcional.
+    }
+  }, []);
+
+  const changeView = (next: PanelView) => {
+    setView(next);
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      // Preferência opcional.
+    }
+  };
+
+  const activeView: PanelView = canSwitch ? view : 'transcript';
+
   return (
     <div className="flex h-full min-w-0 w-full bg-background flex-col relative @container">
+      {canSwitch && (
+        <div role="tablist" aria-label="Como ver a reunião" className="flex shrink-0 gap-0.5 border-b border-border px-2 pt-1.5">
+          {VIEWS.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              role="tab"
+              aria-selected={activeView === item.value}
+              title={item.label}
+              onClick={() => changeView(item.value)}
+              className={cn(
+                '-mb-px whitespace-nowrap border-b-2 px-2 py-1.5 text-[13px] transition-colors',
+                activeView === item.value
+                  ? 'border-primary font-medium text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {item.short ? (
+                <>
+                  <span className="@[21rem]:hidden">{item.short}</span>
+                  <span className="hidden @[21rem]:inline">{item.label}</span>
+                </>
+              ) : item.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {activeView === 'chat' && meetingId && (
+        <div className="min-h-0 flex-1">
+          <ConversationView meetingId={meetingId} refreshKey={speakersVersion + convertedSegments.length} />
+        </div>
+      )}
+      {activeView === 'people' && meetingId && (
+        <div className="min-h-0 flex-1">
+          <PeopleAndTasks
+            meetingId={meetingId}
+            onSpeakersChanged={() => {
+              setSpeakersVersion((value) => value + 1);
+              void onRefetchTranscripts?.();
+            }}
+          />
+        </div>
+      )}
+      <div className={cn('min-h-0 flex-1 flex-col', activeView === 'transcript' ? 'flex' : 'hidden')}>
       {/* Title area */}
       <div className="px-3 py-2 border-b border-border">
         <TranscriptButtonGroup
@@ -112,6 +193,7 @@ export function TranscriptPanel({
           />
         </div>
       )}
+      </div>
     </div>
   );
 }

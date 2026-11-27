@@ -2,7 +2,10 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Building2,
+  CalendarDays,
   Check,
+  ListChecks,
   ListFilter,
   MessageCircleQuestion,
   MessagesSquare,
@@ -104,6 +107,9 @@ const Sidebar: React.FC = () => {
   const isHomePage = pathname === '/';
   const isMeetingPage = pathname?.includes('/meeting-details') ?? false;
   const isAskPage = pathname === '/ask';
+  const isAgendaPage = pathname?.startsWith('/agenda') ?? false;
+  const isTasksPage = pathname?.startsWith('/tasks') ?? false;
+  const isClientsPage = pathname?.startsWith('/clients') ?? false;
   const isSettingsPage = pathname === '/settings';
   const isFeedbackPage = pathname === '/feedback';
 
@@ -280,6 +286,15 @@ const Sidebar: React.FC = () => {
         >
           <NotebookText />
         </IconButton>
+        <IconButton label="Agenda" tooltipSide="right" active={isAgendaPage} onClick={() => router.push('/agenda')}>
+          <CalendarDays />
+        </IconButton>
+        <IconButton label="Tarefas" tooltipSide="right" active={isTasksPage} onClick={() => router.push('/tasks')}>
+          <ListChecks />
+        </IconButton>
+        <IconButton label="Clientes" tooltipSide="right" active={isClientsPage} onClick={() => router.push('/clients')}>
+          <Building2 />
+        </IconButton>
         {betaFeatures.importAndRetranscribe && (
           <IconButton label="Importar áudio" tooltipSide="right" onClick={() => openImportDialog()}>
             <Upload />
@@ -365,6 +380,9 @@ const Sidebar: React.FC = () => {
             active={isHomePage || isMeetingPage}
             onClick={() => router.push('/')}
           />
+          <NavItem icon={<CalendarDays />} label="Agenda" active={isAgendaPage} onClick={() => router.push('/agenda')} />
+          <NavItem icon={<ListChecks />} label="Tarefas" active={isTasksPage} onClick={() => router.push('/tasks')} />
+          <NavItem icon={<Building2 />} label="Clientes" active={isClientsPage} onClick={() => router.push('/clients')} />
           <NavItem
             icon={<Search />}
             label="Buscar / Perguntar"

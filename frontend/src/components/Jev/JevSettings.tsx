@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { SettingsCard } from '@/components/settings/SettingsCard';
 import { safeInvoke } from '@/lib/tauriSafe';
 
 /** Mirrors `jev::settings::PublicSettings` (the key itself never comes back). */
@@ -125,24 +126,20 @@ export function JevSettings() {
   const disabled = !draft || busy !== null;
 
   return (
-    <div className="mx-auto mt-8 max-w-2xl space-y-4 rounded-xl border border-border bg-card p-6 text-card-foreground">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold text-foreground">Jev (TypeSafe) — decisões rápidas</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Conexão opcional com o Jev, o modelo de decisão “System One” da TypeSafe AI. Em vez de texto, ele devolve respostas
-            tipadas com probabilidade (sim/não, escolha, nota), o que deixa decisões como “vale sugerir algo agora?” mais baratas que
-            um LLM. Serviço pago por token de entrada; também aceita um servidor compatível neste computador.
-          </p>
-        </div>
+    <SettingsCard
+      title="Jev (TypeSafe) — decisões rápidas"
+      description="Conexão opcional com o Jev, o modelo de decisão “System One” da TypeSafe AI. Em vez de texto, ele devolve respostas tipadas com probabilidade (sim/não, escolha, nota), o que deixa decisões como “vale sugerir algo agora?” mais baratas que um LLM. Serviço pago por token de entrada; também aceita um servidor compatível neste computador."
+      className="mt-4 first:mt-0"
+      action={
         <Switch
           checked={draft?.enabled ?? false}
           onCheckedChange={toggle}
           disabled={disabled}
           aria-label="Usar o Jev"
         />
-      </div>
-
+      }
+    >
+      <div className="space-y-4">
       <div className="space-y-3">
         <label className="block space-y-1">
           <span className="block text-sm font-medium text-foreground">Endereço</span>
@@ -154,7 +151,7 @@ export function JevSettings() {
             spellCheck={false}
             autoComplete="off"
           />
-          <span className="block text-xs text-muted-foreground">
+          <span className="block text-[13px] text-muted-foreground">
             Padrão: {saved?.defaultBaseUrl ?? 'https://api.typesafe.ai'}. Endereço http:// só é aceito para localhost.
           </span>
         </label>
@@ -182,7 +179,7 @@ export function JevSettings() {
             spellCheck={false}
             autoComplete="off"
           />
-          <span className="block text-xs text-muted-foreground">
+          <span className="block text-[13px] text-muted-foreground">
             Fica só neste computador, no arquivo de configurações do app, e nunca volta para a tela.
           </span>
         </label>
@@ -225,11 +222,12 @@ export function JevSettings() {
         </div>
       )}
 
-      <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+      <ul className="list-disc space-y-1 pl-5 text-[13px] text-muted-foreground">
         <li>“Testar conexão” só lista os modelos e não gasta créditos. “Validar chave” envia uma frase de teste.</li>
         <li>Desligado, o app nunca chama o Jev. Ligado, recursos que usam o Jev enviam a ele trechos da transcrição: é um serviço de terceiros.</li>
         <li>Sem o Jev, tudo continua funcionando com os modelos locais.</li>
       </ul>
-    </div>
+      </div>
+    </SettingsCard>
   );
 }

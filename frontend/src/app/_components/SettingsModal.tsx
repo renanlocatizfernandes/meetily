@@ -1,5 +1,3 @@
-import { ModelConfig } from "@/components/ModelSettingsModal";
-import { PreferenceSettings } from "@/components/PreferenceSettings";
 import { DeviceSelection } from "@/components/DeviceSelection";
 import { cachedDeviceLabel } from "@/lib/audioDevices";
 import { LanguageSelection } from "@/components/LanguageSelection";
@@ -42,11 +40,6 @@ export function SettingsModals({
 }: SettingsModalsProps) {
   // Contexts
   const {
-    modelConfig,
-    setModelConfig,
-    models,
-    modelOptions,
-    error,
     selectedDevices,
     setSelectedDevices,
     selectedLanguage,
@@ -60,112 +53,6 @@ export function SettingsModals({
   const { isRecording } = useRecordingState();
 
   return <>
-    {/* Legacy Settings Modal */}
-    {modals.modelSettings && (
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-        <div className="bg-card rounded-lg shadow-md max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-          {/* Header */}
-          <div className="flex justify-between items-center p-6 border-b">
-            <h3 className="text-xl font-semibold text-foreground">Preferências</h3>
-            <button
-              onClick={() => onClose("modelSettings")
-              }
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Content - Scrollable */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-8">
-            {/* General Preferences Section */}
-            <PreferenceSettings />
-
-            {/* Divider */}
-            <div className="border-t pt-8">
-              <h4 className="text-lg font-semibold text-foreground mb-4">Configuração do modelo de IA</h4>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
-                    Modelo de resumo
-                  </label>
-                  <div className="flex space-x-2">
-                    <select
-                      className="px-3 py-2 text-sm bg-card border border-border rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-ring focus:border-primary"
-                      value={modelConfig.provider}
-                      onChange={(e) => {
-                        const provider = e.target.value as ModelConfig['provider'];
-                        setModelConfig({
-                          ...modelConfig,
-                          provider,
-                          model: modelOptions[provider][0]
-                        });
-                      }}
-                    >
-                      <option value="builtin-ai">IA embutida</option>
-                      <option value="claude">Claude</option>
-                      <option value="groq">Groq</option>
-                      <option value="ollama">Ollama</option>
-                      <option value="openrouter">OpenRouter</option>
-                      <option value="openai">OpenAI</option>
-                    </select>
-
-                    <select
-                      className="flex-1 px-3 py-2 text-sm bg-card border border-border rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-ring focus:border-primary"
-                      value={modelConfig.model}
-                      onChange={(e) => setModelConfig((prev: ModelConfig) => ({ ...prev, model: e.target.value }))}
-                    >
-                      {modelOptions[modelConfig.provider].map((model: string) => (
-                        <option key={model} value={model}>
-                          {model}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                {modelConfig.provider === 'ollama' && (
-                  <div>
-                    <h4 className="text-lg font-bold mb-4">Modelos do Ollama disponíveis</h4>
-                    {error && (
-                      <div className="bg-danger-soft border border-danger/30 text-danger px-4 py-3 rounded mb-4">
-                        {error}
-                      </div>
-                    )}
-                    <div className="grid gap-4 max-h-[400px] overflow-y-auto pr-2">
-                      {models.map((model) => (
-                        <div
-                          key={model.id}
-                          className={`bg-card p-4 rounded-lg shadow cursor-pointer transition-colors ${modelConfig.model === model.name ? 'ring-2 ring-ring bg-brand-soft' : 'hover:bg-muted'
-                            }`}
-                          onClick={() => setModelConfig((prev: ModelConfig) => ({ ...prev, model: model.name }))}
-                        >
-                          <h3 className="font-bold">{model.name}</h3>
-                          <p className="text-muted-foreground">Tamanho: {model.size}</p>
-                          <p className="text-muted-foreground">Modificado: {model.modified}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="border-t p-6 flex justify-end">
-            <button
-              onClick={() => onClose('modelSettings')}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring"
-            >
-              Concluir
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-
     {/* Device Settings Modal */}
     {modals.deviceSettings && (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -267,6 +154,7 @@ export function SettingsModals({
               transcriptModelConfig={transcriptModelConfig}
               setTranscriptModelConfig={setTranscriptModelConfig}
               onModelSelect={() => onClose('modelSelector')}
+              card={false}
             />
           </div>
 

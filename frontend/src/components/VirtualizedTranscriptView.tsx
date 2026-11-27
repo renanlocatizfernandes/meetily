@@ -88,7 +88,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
     onRenameSpeaker?: (speakerKey: string, displayName: string) => void;
 }) {
     const speakerLabel = speakerDisplay(speaker);
-    const displayText = cleanStopWords(text) || (text.trim() === '' ? '[Silence]' : text);
+    const displayText = cleanStopWords(text) || (text.trim() === '' ? '[Silêncio]' : text);
 
     return (
         <div id={`segment-${id}`} className="mb-3">

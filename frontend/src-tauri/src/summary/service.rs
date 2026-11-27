@@ -25,6 +25,25 @@ use log::{error, info, warn};
 static METADATA_CACHE: LazyLock<ModelMetadataCache> =
     LazyLock::new(|| ModelMetadataCache::new(Duration::from_secs(300)));
 
+/// Tokens kept for the instructions around the transcript in each request.
+const PROMPT_OVERHEAD_TOKENS: usize = 300;
+
+/// Output room kept for an Ollama answer. Ollama gets no `max_tokens` from the app and
+/// stops when the context is full, so a prompt that fills it leaves no room to answer.
+const OLLAMA_OUTPUT_RESERVE_TOKENS: usize = 4096;
+
+/// The processor splits at `threshold - 300`; never hand it less than this.
+const MIN_CHUNK_TOKEN_THRESHOLD: usize = 600;
+
+/// Transcript tokens one local request may carry: the context minus the prompt overhead
+/// and the output it has to hold. On small contexts the output takes at most half of
+/// what is left, so the transcript always keeps the other half.
+fn chunk_token_threshold(context_size: usize, max_output_tokens: usize) -> usize {
+    let budget = context_size.saturating_sub(PROMPT_OVERHEAD_TOKENS);
+    let reserved_output = max_output_tokens.min(budget / 2);
+    (budget - reserved_output).max(MIN_CHUNK_TOKEN_THRESHOLD)
+}
+
 #[derive(Clone)]
 struct RegisteredCancellation {
     started_at: DateTime<Utc>,
@@ -437,11 +456,15 @@ impl SummaryService {
         let token_threshold = if provider == LLMProvider::Ollama {
             match METADATA_CACHE.get_or_fetch(&model_name, ollama_endpoint.as_deref()).await {
                 Ok(metadata) => {
-                    // Reserve 300 tokens for prompt overhead
-                    let optimal = metadata.context_size.saturating_sub(300);
+                    // Size by the context Ollama will serve this request (no `num_ctx`
+                    // goes through /v1/chat/completions), not by the model's native limit.
+                    let optimal = chunk_token_threshold(
+                        metadata.served_context_size,
+                        OLLAMA_OUTPUT_RESERVE_TOKENS,
+                    );
                     info!(
-                        "✓ Using dynamic context for {}: {} tokens (chunk size: {})",
-                        model_name, metadata.context_size, optimal
+                        "✓ Using dynamic context for {}: served {} tokens, model limit {} (chunk size: {})",
+                        model_name, metadata.served_context_size, metadata.context_size, optimal
                     );
                     optimal
                 }
@@ -450,7 +473,7 @@ impl SummaryService {
                         "Failed to fetch context for {}: {}. Using default 4000",
                         model_name, e
                     );
-                    4000  // Fallback to safe default
+                    chunk_token_threshold(4000, OLLAMA_OUTPUT_RESERVE_TOKENS)
                 }
             }
         } else if provider == LLMProvider::BuiltInAI {
@@ -461,8 +484,12 @@ impl SummaryService {
 
             match model {
                 Ok(model_def) => {
-                    // Reserve 300 tokens for prompt overhead
-                    let optimal = model_def.context_size.saturating_sub(300) as usize;
+                    // The sidecar generates up to DEFAULT_MAX_TOKENS inside the same
+                    // context: prompt and output have to fit together.
+                    let optimal = chunk_token_threshold(
+                        model_def.context_size as usize,
+                        models::DEFAULT_MAX_TOKENS as usize,
+                    );
                     info!(
                         "✓ Using BuiltInAI context size: {} tokens (chunk size: {})",
                         model_def.context_size, optimal
@@ -471,7 +498,7 @@ impl SummaryService {
                 }
                 Err(e) => {
                     warn!("{}, using default 2048", e);
-                    1748  // 2048 - 300 for overhead
+                    chunk_token_threshold(2048, models::DEFAULT_MAX_TOKENS as usize)
                 }
             }
         } else {
@@ -625,6 +652,8 @@ impl SummaryService {
                             &meeting_id,
                             crate::organize::AutoTrigger::SummaryCompleted,
                         );
+                        // Tasks and the Obsidian note (each one a no-op when off).
+                        crate::workspace::on_summary_completed(&_app, &meeting_id);
                     }
                     Ok(false) => warn!("Skipped stale summary completion for meeting_id: {}", meeting_id),
                     Err(error) => error!(
@@ -1038,6 +1067,28 @@ mod tests {
             extract_cached_english_markdown(&raw, &changed_template, Some("de")).unwrap(),
             None
         );
+    }
+
+    #[test]
+    fn chunk_threshold_leaves_room_for_the_output() {
+        use crate::summary::summary_engine::models::DEFAULT_MAX_TOKENS;
+        let max_out = DEFAULT_MAX_TOKENS as usize;
+
+        // Built-in models: 32768 context, 4096 generated tokens.
+        let builtin = chunk_token_threshold(32768, max_out);
+        assert_eq!(builtin, 32768 - 300 - 4096);
+        assert!(builtin + PROMPT_OVERHEAD_TOKENS + max_out <= 32768);
+
+        // Ollama at the contexts it serves by default.
+        assert_eq!(chunk_token_threshold(16384, OLLAMA_OUTPUT_RESERVE_TOKENS), 16384 - 300 - 4096);
+        let small = chunk_token_threshold(4096, OLLAMA_OUTPUT_RESERVE_TOKENS);
+        assert_eq!(small, 1898);
+        assert!(small + PROMPT_OVERHEAD_TOKENS < 4096 / 2 + 300);
+
+        // Tiny or unknown contexts never underflow the processor's `threshold - 300`.
+        for context in [0usize, 100, 300, 512, 1024, 2048] {
+            assert!(chunk_token_threshold(context, max_out) >= MIN_CHUNK_TOKEN_THRESHOLD);
+        }
     }
 
     #[test]

@@ -157,15 +157,15 @@ export default function AnalyticsConsentSwitch() {
     <>
       <div className="space-y-4">
         <div>
-          <h3 className="text-base font-semibold text-foreground mb-2">Dados de uso</h3>
-          <p className="text-sm text-muted-foreground mb-4">
+          <h2 className="text-sm font-medium">Dados de uso</h2>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
             A coleta de dados de uso vem desativada. Você pode ativá-la para compartilhar dados anônimos de produto e desempenho. Nenhum conteúdo pessoal é coletado.
           </p>
         </div>
 
         <div className="flex items-center justify-between p-3 bg-muted rounded-lg border border-border">
           <div>
-            <h4 className="font-semibold text-foreground">Ativar dados de uso</h4>
+            <h3 className="text-sm font-medium text-foreground">Ativar dados de uso</h3>
             <p className="text-sm text-muted-foreground">
               {isProcessing ? 'Atualizando...' : 'Desativado até você ativar'}
             </p>

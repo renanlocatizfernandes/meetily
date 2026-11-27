@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SettingsCard } from '@/components/LiveAssist/SettingsCard';
 import { DEFAULT_SMART_SETTINGS, SmartSettings } from '@/lib/liveAssistSmart';
 
@@ -99,25 +101,29 @@ export function SmartAssistCard() {
           disabled={!loaded}
           onChange={(value) => update({ autoAnswer: value })}
         />
-        <label className="block space-y-1">
-          <span className="text-sm font-medium text-foreground">Modo economia</span>
-          <select
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+        <div className="space-y-1.5">
+          <Label htmlFor="smart-assist-economy" className="text-sm font-medium">Modo economia</Label>
+          <Select
             value={settings.economy}
             disabled={!loaded}
-            onChange={(event) => update({ economy: event.target.value as SmartSettings['economy'] })}
+            onValueChange={(economy) => update({ economy: economy as SmartSettings['economy'] })}
           >
-            <option value="auto">Automático (liga só com provedor na nuvem)</option>
-            <option value="on">Sempre ligado</option>
-            <option value="off">Desligado</option>
-          </select>
-          <span className="block text-xs text-muted-foreground">
+            <SelectTrigger id="smart-assist-economy">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Automático (liga só com provedor na nuvem)</SelectItem>
+              <SelectItem value="on">Sempre ligado</SelectItem>
+              <SelectItem value="off">Desligado</SelectItem>
+            </SelectContent>
+          </Select>
+          <span className="block text-[13px] text-muted-foreground">
             Agrupa as chamadas: só uma pergunta chama o modelo na hora (no mínimo a cada 20 s); o resto vira uma chamada a cada 45 s, com menos texto. Resposta um pouco mais lenta, bem menos tokens.
             {economyOn ? ' Está ligado agora.' : ''}
           </span>
-        </label>
+        </div>
         {cloud && (
-          <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <p className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-[13px] text-warning">
             O provedor de resumo é um serviço na nuvem. O painel da ajuda ao vivo mostra uma estimativa dos tokens usados na gravação.
           </p>
         )}

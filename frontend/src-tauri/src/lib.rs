@@ -66,6 +66,7 @@ pub mod summary;
 pub mod tray;
 pub mod utils;
 pub mod whisper_engine;
+pub mod workspace;
 
 use audio::{list_audio_devices, AudioDevice, trigger_audio_permission};
 use log::{error as log_error, info as log_info};
@@ -262,7 +263,7 @@ mod onnx_runtime_tests {
 
 // Global language preference storage (default to "auto-translate" for automatic translation to English)
 static LANGUAGE_PREFERENCE: std::sync::LazyLock<StdMutex<String>> =
-    std::sync::LazyLock::new(|| StdMutex::new("auto-translate".to_string()));
+    std::sync::LazyLock::new(|| StdMutex::new("auto".to_string()));
 
 #[derive(Debug, Deserialize)]
 struct RecordingArgs {
@@ -981,6 +982,31 @@ pub fn run() {
             ask::commands::ask_meetings,
             ask::commands::ask_status,
             ask::commands::ask_rebuild_index,
+            // Tarefas, participantes, clientes, exportação e Obsidian
+            workspace::workspace_get_settings,
+            workspace::workspace_save_settings,
+            workspace::tasks::tasks_list,
+            workspace::tasks::tasks_generate,
+            workspace::tasks::tasks_add,
+            workspace::tasks::tasks_update,
+            workspace::tasks::tasks_delete,
+            workspace::people::participants_list,
+            workspace::people::participants_index,
+            workspace::people::participants_add,
+            workspace::people::participants_remove,
+            workspace::people::participants_from_calendar,
+            workspace::people::participants_import_file,
+            workspace::clients::clients_list,
+            workspace::clients::clients_save,
+            workspace::clients::clients_rename,
+            workspace::clients::clients_remove,
+            workspace::export::export_meeting_text,
+            workspace::export::export_meeting_file,
+            workspace::export::obsidian_detect_vaults,
+            workspace::export::obsidian_pick_vault,
+            workspace::export::obsidian_export_meeting,
+            workspace::export::obsidian_note_for_meeting,
+            workspace::export::obsidian_open_note,
             // Jev (TypeSafe System One): optional, off by default
             jev::jev_get_settings,
             jev::jev_save_settings,

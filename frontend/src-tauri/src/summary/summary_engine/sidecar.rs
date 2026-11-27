@@ -32,6 +32,11 @@ pub struct SidecarManager {
     /// Stdout reader for receiving responses
     stdout_reader: Arc<Mutex<Option<BufReader<ChildStdout>>>>,
 
+    /// Held for one whole request/response exchange. The sidecar answers on a single
+    /// stdout stream with no request id, so a second writer must not get in between a
+    /// request and the read of its response line.
+    exchange_lock: Arc<Mutex<()>>,
+
     /// Last activity timestamp
     last_activity: Arc<RwLock<Instant>>,
 
@@ -94,6 +99,7 @@ impl SidecarManager {
             child_process: Arc::new(Mutex::new(None)),
             stdin_writer: Arc::new(Mutex::new(None)),
             stdout_reader: Arc::new(Mutex::new(None)),
+            exchange_lock: Arc::new(Mutex::new(())),
             last_activity: Arc::new(RwLock::new(Instant::now())),
             is_healthy: Arc::new(AtomicBool::new(false)),
             should_shutdown: Arc::new(AtomicBool::new(false)),
@@ -353,6 +359,11 @@ impl SidecarManager {
         // Track active request
         let _guard = RequestGuard::new(self.active_request_count.clone());
 
+        // One exchange at a time: the response read below must be the answer to the
+        // request written here. `shutdown()` does not take this lock, so the timeout
+        // branch can still stop the sidecar while it is held.
+        let _exchange = self.exchange_lock.lock().await;
+
         // Write request to stdin
         {
             let mut stdin_lock = self.stdin_writer.lock().await;
@@ -416,7 +427,11 @@ impl SidecarManager {
 
         // Note: We don't use send_request here to avoid incrementing active_request_count
         // for internal health checks, as that would prevent graceful shutdown
-        
+
+        // A ping is an exchange too: it must not read the response of a request that
+        // started after the health loop looked at the active request count.
+        let _exchange = self.exchange_lock.lock().await;
+
         // Write request
         {
             let mut stdin_lock = self.stdin_writer.lock().await;
@@ -559,6 +574,7 @@ impl SidecarManager {
             child_process: self.child_process.clone(),
             stdin_writer: self.stdin_writer.clone(),
             stdout_reader: self.stdout_reader.clone(),
+            exchange_lock: self.exchange_lock.clone(),
             last_activity: self.last_activity.clone(),
             is_healthy: self.is_healthy.clone(),
             should_shutdown: self.should_shutdown.clone(),
@@ -607,6 +623,7 @@ impl SidecarManager {
             child_process: self.child_process.clone(),
             stdin_writer: self.stdin_writer.clone(),
             stdout_reader: self.stdout_reader.clone(),
+            exchange_lock: self.exchange_lock.clone(),
             last_activity: self.last_activity.clone(),
             is_healthy: self.is_healthy.clone(),
             should_shutdown: self.should_shutdown.clone(),

@@ -317,7 +317,7 @@ async fn run_retranscription<R: Runtime>(
     const MAX_SEGMENT_SAMPLES: usize = 25 * 16000; // 25 seconds at 16kHz
 
     let mut processable_segments: Vec<crate::audio::vad::SpeechSegment> = Vec::new();
-    for segment in &speech_segments {
+    for segment in speech_segments {
         if segment.samples.len() > MAX_SEGMENT_SAMPLES {
             debug!(
                 "Splitting large segment ({:.0}ms, {} samples) at silence boundaries",
@@ -325,11 +325,11 @@ async fn run_retranscription<R: Runtime>(
                 segment.samples.len()
             );
 
-            let sub_segments = split_segment_at_silence(segment, MAX_SEGMENT_SAMPLES);
+            let sub_segments = split_segment_at_silence(&segment, MAX_SEGMENT_SAMPLES);
             debug!("Split into {} sub-segments", sub_segments.len());
             processable_segments.extend(sub_segments);
         } else {
-            processable_segments.push(segment.clone());
+            processable_segments.push(segment);
         }
     }
 
@@ -340,7 +340,7 @@ async fn run_retranscription<R: Runtime>(
     let mut all_transcripts: Vec<(String, f64, f64)> = Vec::new(); // (text, start_ms, end_ms)
     let mut total_confidence = 0.0f32;
 
-    for (i, segment) in processable_segments.iter().enumerate() {
+    for (i, mut segment) in processable_segments.into_iter().enumerate() {
         // Check for cancellation before each segment
         if RETRANSCRIPTION_CANCELLED.load(Ordering::SeqCst) {
             return Err(anyhow!("Retranscription cancelled"));
@@ -372,14 +372,14 @@ async fn run_retranscription<R: Runtime>(
         let (text, conf) = if use_parakeet {
             let engine = parakeet_engine.as_ref().unwrap();
             let text = engine
-                .transcribe_audio(segment.samples.clone())
+                .transcribe_audio(std::mem::take(&mut segment.samples))
                 .await
                 .map_err(|e| anyhow!("Parakeet transcription failed on segment {}: {}", i, e))?;
             (text, 0.9f32)
         } else {
             let engine = whisper_engine.as_ref().unwrap();
             let (text, conf, _) = engine
-                .transcribe_audio_with_confidence(segment.samples.clone(), language.clone())
+                .transcribe_audio_with_confidence(std::mem::take(&mut segment.samples), language.clone())
                 .await
                 .map_err(|e| anyhow!("Whisper transcription failed on segment {}: {}", i, e))?;
             (text, conf)

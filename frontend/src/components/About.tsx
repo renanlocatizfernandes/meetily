@@ -101,7 +101,7 @@ export function About() {
 
             {/* Features Grid - Compact */}
             <div className="space-y-3">
-                <h2 className="text-base font-semibold text-foreground">O que torna o Meetily Live Plus diferente</h2>
+                <h2 className="text-sm font-medium text-foreground">O que torna o Meetily Live Plus diferente</h2>
                 <div className="grid grid-cols-2 gap-2">
                     <div className="bg-muted rounded p-3 hover:bg-muted transition-colors">
                         <h3 className="font-bold text-sm text-foreground mb-1">Privacidade em primeiro lugar</h3>
@@ -131,16 +131,13 @@ export function About() {
 
             {/* CTA Section - Compact */}
             <div className="text-center space-y-2">
-                <h3 className="text-base font-semibold text-foreground">Quer levar sua empresa mais longe?</h3>
+                <h3 className="text-sm font-medium text-foreground">Quer levar sua empresa mais longe?</h3>
                 <p className="text-sm text-muted-foreground">
                     Se você planeja criar agentes de IA sob medida, com privacidade em primeiro lugar, ou um produto feito para a sua <span className="font-bold">empresa</span>, a Zackriya pode ajudar.
                 </p>
-                <button
-                    onClick={handleContactClick}
-                    className="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-medium rounded transition-colors duration-150 shadow-sm hover:shadow-md"
-                >
+                <Button type="button" size="sm" onClick={handleContactClick}>
                     Falar com a equipe da Zackriya
-                </button>
+                </Button>
             </div>
 
             {/* Footer - Compact */}

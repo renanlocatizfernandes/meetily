@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
+import { SettingsCard, SettingSwitch } from '@/components/settings/SettingsCard';
 import {
   DEFAULT_AUTOPILOT_SETTINGS,
   costNotice,
@@ -61,33 +62,31 @@ export function AutopilotSettings() {
   const anyStep = current.stepSummary || current.stepTasks || current.stepTitleTags || current.stepEmail;
 
   return (
-    <section className="mx-auto mt-8 max-w-2xl space-y-4 rounded-xl border border-border bg-card p-6 text-card-foreground">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold text-foreground">Piloto automático</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Quando a gravação termina, o app prepara sozinho o que você faria depois da reunião. Fica desligado até você ligar e roda só depois que a gravação acaba.
-          </p>
-        </div>
+    <SettingsCard
+      title="Piloto automático"
+      description="Quando a gravação termina, o app prepara sozinho o que você faria depois da reunião. Fica desligado até você ligar e roda só depois que a gravação acaba."
+      className="mt-4 first:mt-0"
+      action={
         <Switch
           aria-label="Ligar o piloto automático"
           checked={current.enabled}
           disabled={!settings}
           onCheckedChange={(enabled) => save({ ...current, enabled })}
         />
-      </div>
-
+      }
+    >
+      <div className="space-y-4">
       {notice && (
         <div
           role="note"
-          className={`flex gap-2 rounded-lg border p-3 text-sm ${
+          className={`flex gap-2 rounded-lg border p-3 text-[13px] ${
             notice.tone === 'warning'
-              ? 'border-amber-500/40 bg-amber-500/10 text-foreground'
+              ? 'border-warning/30 bg-warning-soft text-warning'
               : 'border-border bg-muted/40 text-muted-foreground'
           }`}
         >
           {notice.tone === 'warning' ? (
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           ) : (
             <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           )}
@@ -95,31 +94,27 @@ export function AutopilotSettings() {
         </div>
       )}
 
-      <div className="space-y-3">
+      <div>
         {STEPS.map((step) => (
-          <div key={step.field} className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <span id={`autopilot-${step.field}`} className="block text-sm font-medium text-foreground">
-                {step.label}
-              </span>
-              <span className="block text-xs text-muted-foreground">{step.detail}</span>
-            </div>
-            <Switch
-              aria-labelledby={`autopilot-${step.field}`}
-              checked={current[step.field]}
-              disabled={!settings}
-              onCheckedChange={(value) => save({ ...current, [step.field]: value })}
-            />
-          </div>
+          <SettingSwitch
+            key={step.field}
+            id={`autopilot-${step.field}`}
+            label={step.label}
+            hint={step.detail}
+            checked={current[step.field]}
+            disabled={!settings}
+            onCheckedChange={(value) => save({ ...current, [step.field]: value })}
+          />
         ))}
       </div>
 
       {current.enabled && !anyStep && (
-        <p className="text-xs text-muted-foreground">Todas as etapas estão desligadas: o piloto não vai fazer nada.</p>
+        <p className="text-[13px] text-muted-foreground">Todas as etapas estão desligadas: o piloto não vai fazer nada.</p>
       )}
-      <p className="text-xs text-muted-foreground">
+      <p className="text-[13px] text-muted-foreground">
         Sem chave no provedor pago, o piloto usa um modelo local, se houver; sem nenhum dos dois, não faz nada e avisa na própria reunião.
       </p>
-    </section>
+      </div>
+    </SettingsCard>
   );
 }

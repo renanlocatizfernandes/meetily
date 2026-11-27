@@ -19,9 +19,11 @@ export interface TranscriptSettingsProps {
     transcriptModelConfig: TranscriptModelProps;
     setTranscriptModelConfig: (config: TranscriptModelProps) => void;
     onModelSelect?: () => void;
+    /** Cartão padrão das configurações. Desligue quando já estiver dentro de um modal. */
+    card?: boolean;
 }
 
-export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelConfig, onModelSelect }: TranscriptSettingsProps) {
+export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelConfig, onModelSelect, card = true }: TranscriptSettingsProps) {
     const [apiKey, setApiKey] = useState<string | null>(transcriptModelConfig.apiKey || null);
     const [showApiKey, setShowApiKey] = useState<boolean>(false);
     const [isApiKeyLocked, setIsApiKeyLocked] = useState<boolean>(true);
@@ -96,12 +98,9 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
     };
 
     return (
-        <div>
+        <div className={card ? 'mt-4 rounded-xl border bg-card p-5 first:mt-0' : undefined}>
             <div>
-                {/* <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-foreground">Transcrição</h3>
-                </div> */}
-                <div className="space-y-4 pb-6">
+                <div className={card ? 'space-y-4' : 'space-y-4 pb-6'}>
                     <div>
                         <Label className="block text-sm font-medium text-foreground mb-1">
                             Modelo de transcrição
@@ -153,7 +152,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                     </div>
 
                     {uiProvider === 'localWhisper' && (
-                        <div className="mt-6">
+                        <div className="mt-4">
                             <ModelManager
                                 selectedModel={transcriptModelConfig.provider === 'localWhisper' ? transcriptModelConfig.model : undefined}
                                 onModelSelect={handleWhisperModelSelect}
@@ -163,7 +162,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                     )}
 
                     {uiProvider === 'parakeet' && (
-                        <div className="mt-6">
+                        <div className="mt-4">
                             <ParakeetModelManager
                                 selectedModel={transcriptModelConfig.provider === 'parakeet' ? transcriptModelConfig.model : undefined}
                                 onModelSelect={handleParakeetModelSelect}

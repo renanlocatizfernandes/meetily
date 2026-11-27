@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{watch, Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
-use whisper_rs::{WhisperContext, WhisperContextParameters, FullParams, SamplingStrategy};
+use whisper_rs::{WhisperContext, WhisperContextParameters, WhisperState, FullParams, SamplingStrategy};
 use serde::{Serialize, Deserialize};
 use anyhow::{Result, anyhow};
 use reqwest::Client;
@@ -65,9 +65,26 @@ pub enum CancelDownloadOutcome {
 
 const CANCEL_DOWNLOAD_CLEANUP_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Threads for one `whisper_full` call. The adaptive value is used, but never fewer than
+/// whisper.cpp's own default of min(4, cores), which was in effect while no count was set,
+/// and never more than the machine has.
+fn whisper_thread_count(max_threads: Option<usize>, cpu_cores: usize) -> i32 {
+    let cpu_cores = cpu_cores.max(1);
+    let library_default = cpu_cores.min(4);
+    max_threads
+        .unwrap_or(library_default)
+        .max(library_default)
+        .min(cpu_cores) as i32
+}
+
 pub struct WhisperEngine {
     models_dir: PathBuf,
     current_context: Arc<RwLock<Option<WhisperContext>>>,
+    /// Decoding state of the loaded model, kept between chunks so each chunk does not pay
+    /// for `whisper_init_state` again. Belongs to `current_context`: it is emptied whenever
+    /// the context is replaced or unloaded (both happen under the context write lock, and
+    /// transcriptions hold the read lock while they use a state).
+    idle_state: std::sync::Mutex<Option<WhisperState>>,
     current_model: Arc<RwLock<Option<String>>>,
     available_models: Arc<RwLock<HashMap<String, ModelInfo>>>,
     // A model remains active until its owning worker has completed cleanup.
@@ -179,6 +196,7 @@ impl WhisperEngine {
         let engine = Self {
             models_dir,
             current_context: Arc::new(RwLock::new(None)),
+            idle_state: std::sync::Mutex::new(None),
             current_model: Arc::new(RwLock::new(None)),
             available_models: Arc::new(RwLock::new(HashMap::new())),
             active_downloads: Arc::new(Mutex::new(HashMap::new())),
@@ -341,7 +359,11 @@ impl WhisperEngine {
                 };
 
                 // Update current context and model
-                *self.current_context.write().await = Some(ctx);
+                {
+                    let mut ctx_guard = self.current_context.write().await;
+                    self.drop_idle_state();
+                    *ctx_guard = Some(ctx);
+                }
                 *self.current_model.write().await = Some(model_name.to_string());
 
                 // Enhanced acceleration status reporting
@@ -369,6 +391,8 @@ impl WhisperEngine {
 
     pub async fn unload_model(&self) -> bool  {
         let mut ctx_guard = self.current_context.write().await;
+        // The state keeps the model alive: release it together with the context.
+        self.drop_idle_state();
         let unloaded = ctx_guard.take().is_some();
         if unloaded {
             log::info!("📉Whisper model unloaded");
@@ -378,6 +402,31 @@ impl WhisperEngine {
         model_name_guard.take();
 
         unloaded
+    }
+
+    fn drop_idle_state(&self) {
+        self.idle_state.lock().unwrap_or_else(|e| e.into_inner()).take();
+    }
+
+    /// State for one transcription: the idle one when it is free, a new one otherwise
+    /// (first chunk after a load, or two transcriptions at the same time).
+    /// Call with the context read lock held.
+    fn checkout_state(&self, ctx: &WhisperContext) -> Result<WhisperState> {
+        let idle = self.idle_state.lock().unwrap_or_else(|e| e.into_inner()).take();
+        match idle {
+            Some(state) => Ok(state),
+            None => Ok(ctx.create_state()?),
+        }
+    }
+
+    /// Hand a state back after a successful run. Call with the context read lock still
+    /// held, so the state can never outlive a model swap. A state whose run failed is
+    /// dropped by the caller instead.
+    fn checkin_state(&self, state: WhisperState) {
+        let mut idle = self.idle_state.lock().unwrap_or_else(|e| e.into_inner());
+        if idle.is_none() {
+            *idle = Some(state);
+        }
     }
 
     pub async fn get_current_model(&self) -> Option<String> {
@@ -596,11 +645,10 @@ impl WhisperEngine {
         params.set_max_len(200);
         params.set_single_segment(false);
 
-        // Set thread count based on hardware (if supported by whisper.cpp)
-        if let Some(_max_threads) = adaptive_config.max_threads {
-            // Note: whisper.cpp may or may not expose thread control through params
-            // Removed debug log to reduce I/O overhead in transcription hot path
-        }
+        params.set_n_threads(whisper_thread_count(
+            adaptive_config.max_threads,
+            hardware_profile.cpu_cores as usize,
+        ));
 
         let duration_seconds = audio_data.len() as f64 / 16000.0;
         let is_partial = duration_seconds < 15.0; // Consider chunks under 15s as partial
@@ -610,7 +658,7 @@ impl WhisperEngine {
         let (num_segments, state) = {
             // let _suppressor = crate::whisper_engine::StderrSuppressor::new();
 
-            let mut state = ctx.create_state()?;
+            let mut state = self.checkout_state(ctx)?;
             state.full(params, &audio_data)?;
             let num_segments = state.full_n_segments();
 
@@ -646,6 +694,8 @@ impl WhisperEngine {
                 result.push_str(cleaned_text);
             }
         }
+
+        self.checkin_state(state);
 
         let final_result = result.trim().to_string();
         let cleaned_result = Self::clean_repetitive_text(&final_result);
@@ -697,8 +747,12 @@ impl WhisperEngine {
         params.set_no_speech_thold(0.55);
         params.set_max_len(200);
         params.set_single_segment(false);
+        params.set_n_threads(whisper_thread_count(
+            adaptive_config.max_threads,
+            hardware_profile.cpu_cores as usize,
+        ));
 
-        let mut state = ctx.create_state()?;
+        let mut state = self.checkout_state(ctx)?;
         state.full(params, &audio_data)?;
         let num_segments = state.full_n_segments()?;
         let mut result = String::new();
@@ -716,6 +770,8 @@ impl WhisperEngine {
                 result.push_str(cleaned_text);
             }
         }
+
+        self.checkin_state(state);
 
         Ok(Self::clean_repetitive_text(result.trim()))
     }
@@ -1159,6 +1215,20 @@ impl WhisperEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn thread_count_uses_the_adaptive_value_within_the_machine() {
+        // High tier on a 10-core Mac: min(cores, 6).
+        assert_eq!(whisper_thread_count(Some(6), 10), 6);
+        assert_eq!(whisper_thread_count(Some(8), 12), 8);
+        // Never below whisper.cpp's default of min(4, cores) (Low tier asks for 2).
+        assert_eq!(whisper_thread_count(Some(2), 8), 4);
+        assert_eq!(whisper_thread_count(Some(2), 2), 2);
+        // Never above the cores present.
+        assert_eq!(whisper_thread_count(Some(8), 4), 4);
+        assert_eq!(whisper_thread_count(None, 16), 4);
+        assert_eq!(whisper_thread_count(None, 0), 1);
+    }
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
     use tokio::sync::oneshot;

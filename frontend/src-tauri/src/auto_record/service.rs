@@ -133,7 +133,12 @@ pub fn start(app: AppHandle<Wry>) {
                     info!("Automatic recording is waiting for confirmation");
                 }
                 Some(Action::Start(app_kind)) if !USER_HOLD.load(Ordering::SeqCst) => {
-                    match begin(&app, app_kind).await {
+                    let title = if app_kind == MeetingApp::Teams {
+                        detect::teams_meeting_title(&windows)
+                    } else {
+                        None
+                    };
+                    match begin(&app, app_kind, title).await {
                         Ok(()) => {
                             owned = true;
                             OWNED.store(true, Ordering::SeqCst);
@@ -265,11 +270,12 @@ async fn load_effective_mode(app: &AppHandle<Wry>) -> (Mode, bool) {
     }
 }
 
-async fn begin(app: &AppHandle<Wry>, kind: MeetingApp) -> Result<(), String> {
+async fn begin(app: &AppHandle<Wry>, kind: MeetingApp, title: Option<String>) -> Result<(), String> {
     if USER_HOLD.load(Ordering::SeqCst) || recording_commands::is_recording().await {
         return Err("recording is already active or automatic start is on hold".to_string());
     }
-    let meeting_name = format!("{} (gravação automática)", kind.label());
+    // O nome da reunião no Teams, quando a janela mostra um; senão o do app.
+    let meeting_name = title.unwrap_or_else(|| format!("{} (gravação automática)", kind.label()));
     recording_commands::start_recording_with_devices_and_meeting(
         app.clone(),
         None,
