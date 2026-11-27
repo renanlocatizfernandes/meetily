@@ -21,7 +21,9 @@ pub use service::{schedule_auto_organize, AutoTrigger};
 // Read-only helpers reused by the live assist context (same matching rules).
 pub(crate) use classify::find_known_client_in_text;
 pub(crate) use store::{
-    list_meetings as list_organized_meetings, load_settings as load_organization_settings,
-    summary_markdown_from_result,
+    get_meeting as get_organized_meeting, list_meetings as list_organized_meetings,
+    load_settings as load_organization_settings, save_settings as save_organization_settings,
+    summary_markdown, summary_markdown_from_result, transcript_text,
 };
+pub(crate) use service::local_time;
 pub(crate) use text::fold;

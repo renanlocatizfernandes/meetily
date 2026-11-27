@@ -21,6 +21,7 @@ import { useCopyOperations } from '@/hooks/meeting-details/useCopyOperations';
 import { useMeetingOperations } from '@/hooks/meeting-details/useMeetingOperations';
 import { useConfig } from '@/contexts/ConfigContext';
 import { MoreHorizontal, Tags } from 'lucide-react';
+import { ExportMenuItems } from '@/components/MeetingDetails/ExportMenuItems';
 import { TopBar } from '@/components/Shell/TopBar';
 import { InlineTitle, type InlineTitleHandle } from '@/components/Shell/InlineTitle';
 import { IconButton } from '@/components/ui/icon-button';
@@ -281,6 +282,8 @@ export default function PageContent({
                   Separator={DropdownMenuSeparator}
                   onRename={() => setTimeout(() => titleRef.current?.startEditing(), 0)}
                 />
+                <DropdownMenuSeparator />
+                <ExportMenuItems meetingId={meeting.id} Item={DropdownMenuItem} />
               </DropdownMenuContent>
             </DropdownMenu>
           </>

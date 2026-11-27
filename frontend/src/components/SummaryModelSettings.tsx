@@ -123,12 +123,12 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
   };
 
   return (
-    <div className='flex flex-col gap-4'>
+    <div className="mt-4 space-y-4 first:mt-0">
       <div className="bg-card rounded-xl border border-border p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">Resumo automático</h3>
-            <p className="text-sm text-muted-foreground">Gera o resumo automaticamente quando a reunião termina</p>
+        <div className="flex items-center justify-between gap-6">
+          <div className="min-w-0">
+            <h2 className="text-sm font-medium">Resumo automático</h2>
+            <p className="mt-0.5 text-[13px] text-muted-foreground">Gera o resumo automaticamente quando a reunião termina</p>
           </div>
           <Switch checked={isAutoSummary} onCheckedChange={toggleIsAutoSummary} />
         </div>
@@ -137,8 +137,8 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
       <SummaryLanguageSettings />
 
       <div className="bg-card rounded-xl border border-border p-5">
-        <h3 className="text-lg font-semibold mb-4">Modelo de resumo</h3>
-        <p className="text-sm text-muted-foreground mb-6">
+        <h2 className="text-sm font-medium">Modelo de resumo</h2>
+        <p className="mt-0.5 mb-4 text-[13px] text-muted-foreground">
           Escolha o modelo de IA usado para gerar os resumos das reuniões.
         </p>
 

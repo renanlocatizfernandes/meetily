@@ -74,6 +74,46 @@ pub fn inspect(windows: &[ObservedWindow], inputs: &[ObservedInput]) -> Detectio
     }
 }
 
+/// Nome da reunião tirado do título da janela do Teams ("Planejamento Q1 |
+/// Microsoft Teams"), para a gravação não nascer como "Microsoft Teams".
+/// Só devolve um nome quando há uma única janela do Teams que não é uma das
+/// telas ociosas, e nunca um título genérico ("Reunião", "Chamada").
+/// O título não vai para o log.
+pub fn teams_meeting_title(windows: &[ObservedWindow]) -> Option<String> {
+    let mut titles: Vec<String> = Vec::new();
+    for window in windows {
+        let owner = normalize(&window.owner);
+        let folded = normalize(&window.title);
+        if !(teams_owner(&owner) || folded.ends_with("| microsoft teams")) || folded.is_empty() || idle_teams_title(&folded) {
+            continue;
+        }
+        let raw = window.title.trim();
+        let name = match raw.rfind('|') {
+            Some(index) if raw[index + 1..].trim().eq_ignore_ascii_case("Microsoft Teams") => raw[..index].trim(),
+            _ => raw,
+        };
+        // Contador de não lidas no começo: "(3) Planejamento".
+        let name = match name.strip_prefix('(').and_then(|rest| rest.split_once(')')) {
+            Some((count, rest)) if count.chars().all(|c| c.is_ascii_digit()) => rest.trim(),
+            _ => name,
+        };
+        let generic = matches!(
+            name.to_lowercase().as_str(),
+            "" | "microsoft teams" | "teams" | "meeting" | "reunião" | "reuniao" | "call" | "chamada" | "meet now"
+                | "reunir agora" | "meeting in progress" | "reunião em andamento" | "calling" | "chamando"
+        );
+        let name: String = name.chars().take(90).collect();
+        if !generic && name.chars().filter(|c| c.is_alphanumeric()).count() >= 3 && !titles.contains(&name) {
+            titles.push(name);
+        }
+    }
+    if titles.len() == 1 {
+        titles.pop()
+    } else {
+        None
+    }
+}
+
 fn teams_active(windows: &[ObservedWindow], inputs: &[ObservedInput]) -> bool {
     if bundle_input(inputs, TEAMS_BUNDLES) {
         return true;
@@ -277,6 +317,24 @@ mod tests {
             bundle_id: bundle.to_string(),
             input_active: active,
         }
+    }
+
+    #[test]
+    fn teams_window_gives_the_meeting_name_only_when_unambiguous() {
+        let idle = window("Microsoft Teams", "Bate-papo | Microsoft Teams");
+        let meeting = window("Microsoft Teams", "(2) Planejamento Q1 – ACME | Microsoft Teams");
+        assert_eq!(
+            teams_meeting_title(&[idle.clone(), meeting.clone()]).as_deref(),
+            Some("Planejamento Q1 – ACME")
+        );
+        assert_eq!(teams_meeting_title(&[idle.clone()]), None);
+        assert_eq!(teams_meeting_title(&[idle.clone(), window("Microsoft Teams", "Reunião | Microsoft Teams")]), None);
+        // Duas janelas candidatas: não dá para saber qual é a reunião.
+        assert_eq!(
+            teams_meeting_title(&[meeting, window("Microsoft Teams", "Ana Souza | Microsoft Teams")]),
+            None
+        );
+        assert_eq!(teams_meeting_title(&[window("Google Chrome", "Meet - abc-defg-hij")]), None);
     }
 
     #[test]

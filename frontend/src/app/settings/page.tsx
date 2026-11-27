@@ -10,6 +10,7 @@ import {
   HelpCircle,
   FolderTree,
   Info,
+  Plug,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { TranscriptSettings } from '@/components/TranscriptSettings';
@@ -26,6 +27,8 @@ import { AutopilotSettings } from '@/components/Autopilot/AutopilotSettings';
 import { ModelAdvisorCard } from '@/components/ModelAdvisor';
 import { JevSettings } from '@/components/Jev';
 import { About } from '@/components/About';
+import { IdentitySettings, ObsidianSettings } from '@/components/Workspace/WorkspaceSettings';
+import { SettingsStack } from '@/components/settings/SettingsCard';
 import { useConfig } from '@/contexts/ConfigContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { TopBar } from '@/components/Shell/TopBar';
@@ -34,10 +37,11 @@ import { TopBar } from '@/components/Shell/TopBar';
 const TABS = [
   { value: 'general', label: 'Geral', description: 'Notificações, armazenamento e privacidade.', icon: Settings2 },
   { value: 'recording', label: 'Gravação', description: 'Dispositivos, arquivos de áudio e gravação automática.', icon: Mic },
-  { value: 'Transcriptionmodels', label: 'Transcrição', description: 'Modelo e idioma da transcrição.', icon: DatabaseIcon },
+  { value: 'transcription', label: 'Transcrição', description: 'Modelo e idioma da transcrição.', icon: DatabaseIcon },
   { value: 'summaryModels', label: 'Resumo', description: 'Modelo, idioma e geração automática do resumo.', icon: SparkleIcon },
-  { value: 'organization', label: 'Organização', description: 'Títulos automáticos, clientes e categorias.', icon: FolderTree },
+  { value: 'organization', label: 'Organização', description: 'Seu nome, títulos automáticos, clientes, categorias e tarefas.', icon: FolderTree },
   { value: 'liveAssist', label: 'Ajuda ao vivo', description: 'Sugestões durante a reunião e recursos.', icon: HelpCircle },
+  { value: 'integrations', label: 'Integrações', description: 'Obsidian e conexões com outros aplicativos.', icon: Plug },
   { value: 'beta', label: 'Beta', description: 'Recursos em teste.', icon: FlaskConical },
   { value: 'about', label: 'Sobre', description: 'Versão e atualizações.', icon: Info },
 ] as const;
@@ -46,6 +50,9 @@ type TabValue = (typeof TABS)[number]['value'];
 
 const ACTIVE_TAB_KEY = 'meetily.settings.activeTab';
 
+// Nome antigo da aba de transcrição, ainda aceito em links e na sessão salva.
+const normalizeTab = (value: string | null) => (value === 'Transcriptionmodels' ? 'transcription' : value);
+
 export default function SettingsPage() {
   const { transcriptModelConfig, setTranscriptModelConfig } = useConfig();
   const [activeTab, setActiveTab] = useState<TabValue>('general');
@@ -53,7 +60,7 @@ export default function SettingsPage() {
   // Volta para a última seção aberta nesta sessão
   useEffect(() => {
     try {
-      const stored = sessionStorage.getItem(ACTIVE_TAB_KEY);
+      const stored = normalizeTab(sessionStorage.getItem(ACTIVE_TAB_KEY));
       if (stored && TABS.some((tab) => tab.value === stored)) setActiveTab(stored as TabValue);
     } catch {
       // Sem armazenamento, abre em Geral.
@@ -91,7 +98,7 @@ export default function SettingsPage() {
 
   // Link direto para uma seção, por exemplo /settings?tab=liveAssist
   useEffect(() => {
-    const tab = new URLSearchParams(window.location.search).get('tab');
+    const tab = normalizeTab(new URLSearchParams(window.location.search).get('tab'));
     if (tab && TABS.some((item) => item.value === tab)) setActiveTab(tab as TabValue);
   }, []);
 
@@ -143,7 +150,7 @@ export default function SettingsPage() {
               <AutoRecordSettings />
               <MeetingEndSettings />
             </TabsContent>
-            <TabsContent value="Transcriptionmodels" className="mt-0">
+            <TabsContent value="transcription" className="mt-0">
               <ModelAdvisorCard roles={['speech', 'voices']} />
               <TranscriptSettings
                 transcriptModelConfig={transcriptModelConfig}
@@ -156,15 +163,23 @@ export default function SettingsPage() {
               <AutopilotSettings />
             </TabsContent>
             <TabsContent value="organization" className="mt-0">
-              <OrganizationSettings />
+              <SettingsStack>
+                <IdentitySettings />
+                <OrganizationSettings />
+              </SettingsStack>
             </TabsContent>
             <TabsContent value="liveAssist" className="mt-0">
               <LiveAssistSettings />
               <RecursosSettings />
             </TabsContent>
+            <TabsContent value="integrations" className="mt-0">
+              <SettingsStack>
+                <ObsidianSettings />
+                <JevSettings />
+              </SettingsStack>
+            </TabsContent>
             <TabsContent value="beta" className="mt-0">
               <BetaSettings />
-              <JevSettings />
             </TabsContent>
             <TabsContent value="about" className="mt-0">
               <div className="rounded-xl border bg-card p-5">

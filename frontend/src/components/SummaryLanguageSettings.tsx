@@ -17,11 +17,11 @@ export function SummaryLanguageSettings() {
 
   return (
     <div className="bg-card rounded-xl border border-border p-5 relative">
-      <div className="flex items-center gap-2 mb-2">
-        <Globe size={18} className="text-muted-foreground" />
-        <h3 className="text-lg font-semibold text-foreground">Idioma do resumo</h3>
+      <div className="flex items-center gap-2">
+        <Globe size={16} className="text-muted-foreground" />
+        <h2 className="text-sm font-medium">Idioma do resumo</h2>
       </div>
-      <p className="text-sm text-muted-foreground mb-4">
+      <p className="mt-0.5 mb-4 text-[13px] text-muted-foreground">
         Fixe um idioma como padrão para as novas reuniões. Os demais continuam como
         opções de troca rápida ao gerar o resumo. O Automático usa o idioma predominante da transcrição.
       </p>
@@ -74,7 +74,7 @@ export function SummaryLanguageSettings() {
               disabled={recents.length >= 5}
               className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-3 py-1 text-sm text-muted-foreground hover:border-input hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             >
-              ＋ Add language
+              ＋ Adicionar idioma
             </button>
           </PopoverTrigger>
           <PopoverContent align="start" className="w-auto p-0 border-0 shadow-none bg-transparent">

@@ -23,6 +23,7 @@ pub use commands::{
 pub use toggles::{load, load_effective, FeatureToggles};
 
 pub use commitments::detect_commitments;
+pub(crate) use actions::parse_action_items;
 pub use signals::{detect_signals, Signal};
 pub use entities::unknown_terms;
 pub use lookup::{contexto_line, LookupHit};

@@ -46,6 +46,9 @@ pub enum ChunkSizePreference {
     Quality,    // Larger chunks for accuracy
 }
 
+/// Memory assumed when the system does not report it.
+const FALLBACK_MEMORY_GB: u8 = 8;
+
 static HARDWARE_PROFILE: OnceLock<HardwareProfile> = OnceLock::new();
 
 impl HardwareProfile {
@@ -105,15 +108,47 @@ impl HardwareProfile {
         (false, GpuType::None)
     }
 
-    /// Detect available system memory in GB
+    /// Installed system memory in whole GB. `MEMORY_GB` overrides the reading (tests, diagnostics).
     fn detect_memory_gb() -> u8 {
-        // Simple memory detection - could be enhanced with system-specific calls
-        match std::env::var("MEMORY_GB") {
-            Ok(mem_str) => mem_str.parse().unwrap_or(8),
-            Err(_) => {
-                // Default estimates based on common configurations
-                8 // Conservative default
-            }
+        if let Some(override_gb) = std::env::var("MEMORY_GB").ok().and_then(|v| v.parse::<u8>().ok()) {
+            return override_gb;
+        }
+
+        let system = sysinfo::System::new_with_specifics(
+            sysinfo::RefreshKind::new()
+                .with_memory(sysinfo::MemoryRefreshKind::new().with_ram()),
+        );
+        Self::memory_gb_from_bytes(system.total_memory())
+    }
+
+    /// Nominal GB from the byte count the system reports (8 GB machines report a little
+    /// under 8 GiB). An unreadable value (0) keeps the old conservative 8 GB estimate.
+    fn memory_gb_from_bytes(total_memory_bytes: u64) -> u8 {
+        if total_memory_bytes == 0 {
+            return FALLBACK_MEMORY_GB;
+        }
+        let gb = ((total_memory_bytes as f64) / (1024.0 * 1024.0 * 1024.0)).round();
+        gb.clamp(1.0, u8::MAX as f64) as u8
+    }
+
+    /// Beam size the live path used while memory was assumed to be 8 GB. The tier now
+    /// follows the real memory, but a larger beam must not come with it: transcription
+    /// latency stays where it was.
+    fn latency_safe_beam_size(&self, tier_beam_size: usize) -> usize {
+        let baseline_tier = Self::calculate_performance_tier(
+            self.cpu_cores,
+            &self.gpu_type,
+            self.memory_gb.min(FALLBACK_MEMORY_GB),
+        );
+        tier_beam_size.min(Self::tier_beam_size(baseline_tier))
+    }
+
+    fn tier_beam_size(tier: PerformanceTier) -> usize {
+        match tier {
+            PerformanceTier::Ultra => 5,
+            PerformanceTier::High => 3,
+            PerformanceTier::Medium => 2,
+            PerformanceTier::Low => 1,
         }
     }
 
@@ -219,28 +254,28 @@ impl HardwareProfile {
         {
             match self.performance_tier {
                 PerformanceTier::Ultra => AdaptiveWhisperConfig {
-                    beam_size: 5,  // Maximum quality
+                    beam_size: self.latency_safe_beam_size(Self::tier_beam_size(PerformanceTier::Ultra)),
                     temperature: 0.1,
                     use_gpu: self.has_gpu_acceleration,
                     max_threads: Some(self.cpu_cores.min(8) as usize),
                     chunk_size_preference: ChunkSizePreference::Quality,
                 },
                 PerformanceTier::High => AdaptiveWhisperConfig {
-                    beam_size: 3,  // High quality
+                    beam_size: self.latency_safe_beam_size(Self::tier_beam_size(PerformanceTier::High)),
                     temperature: 0.2,
                     use_gpu: self.has_gpu_acceleration,
                     max_threads: Some(self.cpu_cores.min(6) as usize),
                     chunk_size_preference: ChunkSizePreference::Balanced,
                 },
                 PerformanceTier::Medium => AdaptiveWhisperConfig {
-                    beam_size: 2,  // Balanced
+                    beam_size: self.latency_safe_beam_size(Self::tier_beam_size(PerformanceTier::Medium)),
                     temperature: 0.3,
                     use_gpu: self.has_gpu_acceleration,
                     max_threads: Some(self.cpu_cores.min(4) as usize),
                     chunk_size_preference: ChunkSizePreference::Balanced,
                 },
                 PerformanceTier::Low => AdaptiveWhisperConfig {
-                    beam_size: 1,  // Fast processing
+                    beam_size: Self::tier_beam_size(PerformanceTier::Low),
                     temperature: 0.4,
                     use_gpu: false, // Force CPU to avoid GPU overhead on weak hardware
                     max_threads: Some(2),
@@ -305,6 +340,52 @@ mod tests {
 
         let high_tier = HardwareProfile::calculate_performance_tier(8, &GpuType::Metal, 16);
         assert_eq!(high_tier, PerformanceTier::Ultra);
+    }
+
+    #[test]
+    fn memory_is_read_from_the_system_and_rounded() {
+        const GIB: u64 = 1024 * 1024 * 1024;
+        assert_eq!(HardwareProfile::memory_gb_from_bytes(8 * GIB - 300_000_000), 8);
+        assert_eq!(HardwareProfile::memory_gb_from_bytes(16 * GIB), 16);
+        assert_eq!(HardwareProfile::memory_gb_from_bytes(36 * GIB), 36);
+        assert_eq!(HardwareProfile::memory_gb_from_bytes(1024 * GIB), u8::MAX);
+        // Unreadable memory keeps the old estimate instead of dropping the tier.
+        assert_eq!(HardwareProfile::memory_gb_from_bytes(0), FALLBACK_MEMORY_GB);
+    }
+
+    fn profile(cpu_cores: u8, gpu_type: GpuType, memory_gb: u8) -> HardwareProfile {
+        HardwareProfile {
+            cpu_cores,
+            has_gpu_acceleration: gpu_type != GpuType::None,
+            gpu_type,
+            memory_gb,
+            performance_tier: HardwareProfile::calculate_performance_tier(cpu_cores, &gpu_type, memory_gb),
+        }
+    }
+
+    #[test]
+    fn tier_follows_real_memory() {
+        assert_eq!(profile(8, GpuType::Metal, 8).performance_tier, PerformanceTier::High);
+        assert_eq!(profile(10, GpuType::Metal, 32).performance_tier, PerformanceTier::Ultra);
+        assert_eq!(profile(8, GpuType::None, 16).performance_tier, PerformanceTier::Medium);
+        assert_eq!(profile(8, GpuType::Vulkan, 16).performance_tier, PerformanceTier::High);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn more_memory_does_not_raise_the_beam_size() {
+        for gpu in [GpuType::Metal, GpuType::Cuda, GpuType::Vulkan, GpuType::None] {
+            for cores in [2u8, 4, 6, 8, 12] {
+                let assumed_8gb = profile(cores, gpu, 8).get_whisper_config().beam_size;
+                for memory in [8u8, 16, 32, 64, 128] {
+                    let beam = profile(cores, gpu, memory).get_whisper_config().beam_size;
+                    assert_eq!(beam, assumed_8gb, "{:?} {} cores {} GB", gpu, cores, memory);
+                }
+                // Less than 8 GB may only lower it.
+                assert!(profile(cores, gpu, 4).get_whisper_config().beam_size <= assumed_8gb);
+            }
+        }
+        assert_eq!(profile(10, GpuType::Metal, 32).get_whisper_config().beam_size, 3);
     }
 
     #[test]

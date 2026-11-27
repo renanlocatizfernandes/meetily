@@ -135,25 +135,25 @@ export function PreferenceSettings() {
 
   // Show loading only if we're actually loading and don't have cached data
   if (isLoadingPreferences && !notificationSettings && !storageLocations) {
-    return <div className="max-w-2xl mx-auto p-6">Carregando preferências...</div>
+    return <div className="rounded-xl border bg-card p-5 text-[13px] text-muted-foreground">Carregando preferências...</div>
   }
 
   // Show loading if notificationsEnabled hasn't been determined yet
   if (notificationsEnabled === null && !isLoadingPreferences) {
-    return <div className="max-w-2xl mx-auto p-6">Carregando preferências...</div>
+    return <div className="rounded-xl border bg-card p-5 text-[13px] text-muted-foreground">Carregando preferências...</div>
   }
 
   // Ensure we have a boolean value for the Switch component
   const notificationsEnabledValue = notificationsEnabled ?? false;
 
   return (
-    <div className="space-y-6">
+    <div className="mt-4 space-y-4 first:mt-0">
       {/* Notifications Section */}
       <div className="bg-card rounded-xl border border-border p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">Notificações</h3>
-            <p className="text-sm text-muted-foreground">Ative ou desative as notificações de início e fim de reunião</p>
+        <div className="flex items-center justify-between gap-6">
+          <div className="min-w-0">
+            <h2 className="text-sm font-medium">Notificações</h2>
+            <p className="mt-0.5 text-[13px] text-muted-foreground">Ative ou desative as notificações de início e fim de reunião</p>
           </div>
           <Switch checked={notificationsEnabledValue} onCheckedChange={setNotificationsEnabled} />
         </div>
@@ -161,8 +161,8 @@ export function PreferenceSettings() {
 
       {/* Data Storage Locations Section */}
       <div className="bg-card rounded-xl border border-border p-5">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Locais de armazenamento</h3>
-        <p className="text-sm text-muted-foreground mb-6">
+        <h2 className="text-sm font-medium">Locais de armazenamento</h2>
+        <p className="mt-0.5 mb-4 text-[13px] text-muted-foreground">
           Veja e abra os locais onde o Meetily Live Plus guarda seus dados
         </p>
 
@@ -199,7 +199,7 @@ export function PreferenceSettings() {
 
           {/* Recordings Location */}
           <div className="p-4 border rounded-lg bg-muted">
-            <div className="font-medium mb-2">Gravações de reuniões</div>
+            <div className="text-sm font-medium mb-2">Gravações de reuniões</div>
             <div className="text-sm text-muted-foreground mb-3 break-all font-mono text-xs">
               {storageLocations?.recordings || 'Carregando...'}
             </div>

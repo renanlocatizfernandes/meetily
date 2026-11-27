@@ -366,3 +366,46 @@ A causa é o cache de prompts do Ollama, que cresce quando o começo do prompt m
 - O prompt da ajuda ao vivo foi reordenado: a conversa vem antes e só cresce no fim; contexto automático, fontes e sugestões já mostradas vêm depois dela. A janela guarda 75 segundos depois de um corte e só corta de novo ao passar de 180 segundos.
 - Ao parar a gravação, o app pede ao Ollama para descarregar o modelo da ajuda ao vivo, a menos que ele seja o mesmo do resumo.
 - Limites: o teto de 16 GiB só foi medido neste Mac de 24 GB. Com o prompt novo a memória do `llama3.2` ainda sobe um pouco a cada corte da janela. A qualidade das sugestões com a nova ordem do prompt não foi comparada com a anterior. Nada disso foi exercitado no app aberto, só em testes automatizados e num script de carga.
+
+## Em desenvolvimento (branch `feature/agenda-tarefas-conversa`, 27/11/2026, ainda sem versão)
+
+Tudo local: nenhum serviço novo, nenhuma conta, nenhuma chave. Migração nova `20261127000000_workspace.sql` (tabelas `tasks`, `task_runs`, `meeting_participants`, `clients`, `workspace_settings`, `obsidian_notes`).
+
+**Telas novas no menu lateral**
+
+- **Agenda**: reuniões por dia, por semana (grade de horas, blocos lado a lado quando se sobrepõem) e em linha do tempo. A busca olha título, cliente, projeto, categoria, etiquetas, participantes e o que foi dito (`/` leva o foco para a busca).
+- **Tarefas**: "Com você", "Aguardando retorno", "Sem responsável" e "Concluídas", com prazo, atraso, filtro por cliente e criação à mão.
+- **Clientes**: reuniões, horas, tarefas abertas e pessoas de cada cliente; apelidos e domínios de e-mail; renomear para um nome existente une os dois.
+
+**Dentro da reunião**
+
+- Aba **Conversa**: balões no estilo de aplicativo de mensagens, você à direita, cada pessoa com nome e cor, busca dentro da conversa. Clicar no nome diz quem é aquela voz (lista de participantes ou nome livre).
+- Aba **Pessoas e tarefas**: participantes (Calendário do macOS, arquivo do Teams ou à mão) e as tarefas da reunião.
+- Menu "Mais ações": exportar em `.txt` ou `.md`, enviar ao Obsidian, abrir no Obsidian.
+
+**Tarefas inteligentes**: quando o resumo termina, o app extrai o que ficou combinado (modelo de resumo configurado; se falhar, regras sobre o resumo). Cada tarefa tem responsável e prazo; o nome em Configurações → Organização decide o que é seu e o que é devolução dos outros. Gerar de novo mantém o que foi editado, concluído ou criado à mão.
+
+**Quem estava na reunião do Teams**
+
+- O título da janela do Teams vira o nome da gravação automática.
+- Os convidados vêm do evento do Calendário do macOS que cobre o horário da gravação.
+- "Importar do Teams" lê a transcrição `.vtt`, a lista de presença `.csv` ou um convite `.ics`. Com o `.vtt`, o app alinha os textos e sugere o nome de cada voz.
+- Não foi feito: login na Microsoft (Graph) e leitura da lista de participantes pela janela do Teams.
+
+**Clientes e organização**: apelido vira o nome oficial; domínio de e-mail de um participante define o cliente; o nome original da reunião entra no contexto da classificação.
+
+**Obsidian** (Configurações → Integrações): escolhe o cofre e a pasta; cada reunião vira uma nota Markdown com propriedades, links `[[cliente]]` e `[[pessoa]]`, tarefas `- [ ]` e a conversa. O que estiver abaixo da linha marcada no fim da nota é preservado ao reenviar. Envio automático opcional.
+
+**Modelos**
+
+- Whisper usa o número de threads do perfil da máquina (antes ficava no padrão da biblioteca) e reaproveita o estado entre trechos.
+- O perfil de hardware lê a memória real (antes assumia 8 GB).
+- Resumo com modelo embutido reserva espaço para a resposta ao dividir a transcrição; com Ollama, divide pelo contexto que o servidor realmente usa (antes mandava a reunião inteira e o Ollama cortava).
+- Pedidos ao `llama-helper` não se cruzam mais quando chegam ao mesmo tempo.
+- Importar e retranscrever copiam menos áudio na memória.
+- Modelo padrão de reserva `large-v3-turbo` e idioma inicial `auto`, iguais aos da interface.
+- Nenhuma velocidade foi medida; são mudanças de código, sem benchmark.
+
+**Configurações**: todos os cartões com o mesmo formato, títulos e espaçamento; controles do kit no lugar de `select` e caixas nativas; cores por tokens; cabeçalhos repetidos removidos; nova aba Integrações (Obsidian e Jev); textos que estavam em inglês traduzidos; arquivos sem uso apagados (`SettingTabs`, `CustomDialog`, `MainNav`, `app/metadata.*`).
+
+**Verificado (macOS arm64)**: `cargo test --lib` 716 passaram; `bun test` 137 passaram; `tsc --noEmit` e `next build` sem erros. **Visto no app em modo dev, com os dados reais**: barra lateral, Agenda (dia, semana, linha do tempo), Tarefas, Clientes, abas Conversa e Pessoas da reunião, geração de tarefas a partir do piloto automático (7 tarefas), menu de exportação e todas as abas de Configurações. **Não verificado**: gravar o .txt/.md e a nota do Obsidian (só os testes do Rust), leitura do Calendário, importação de arquivo do Teams, título real do Teams, e ganho de velocidade dos modelos.

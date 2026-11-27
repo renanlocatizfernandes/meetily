@@ -1,6 +1,10 @@
 import type { ReactNode } from 'react';
+import { SettingsCard as BaseSettingsCard } from '@/components/settings/SettingsCard';
 
-/** Card used by the live assist settings. Same footprint as the existing settings cards. */
+/**
+ * Cartão das configurações da ajuda ao vivo: o cartão padrão das
+ * configurações, com o espaçamento de quem é empilhado sem um contêiner.
+ */
 export function SettingsCard({
   title,
   description,
@@ -11,12 +15,8 @@ export function SettingsCard({
   children: ReactNode;
 }) {
   return (
-    <section className="mx-auto mt-8 max-w-2xl space-y-4 rounded-xl border border-border bg-card p-6 text-card-foreground">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
-      </div>
-      {children}
-    </section>
+    <BaseSettingsCard title={title} description={description} className="mt-4 first:mt-0">
+      <div className="space-y-4">{children}</div>
+    </BaseSettingsCard>
   );
 }
