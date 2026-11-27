@@ -13,6 +13,9 @@ export CARGO_HOME=/cache/cargo
 export XDG_CACHE_HOME=/work/.cache-linux
 # Não há FUSE no container; caso algum AppImage ainda seja executado, que se extraia.
 export APPIMAGE_EXTRACT_AND_RUN=1
+# O plugin de AppImage baixaria o runtime "continuous" do GitHub a cada build
+# (e o download falha sob emulação). Usa o runtime fixado que já está na imagem.
+export LDAI_RUNTIME_FILE=/opt/appimage/runtime-x86_64
 
 BINARIO="/work/target/$ALVO/release/meetily"
 # O bundler grava o tipo de pacote dentro do binário (o atualizador usa isso).
