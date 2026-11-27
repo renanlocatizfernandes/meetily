@@ -49,6 +49,11 @@ if (platform === 'linux' && feature === 'cuda') {
 
 // Build the tauri command
 let tauriCmd = `tauri ${command}`;
+// O modo dev usa identificador próprio: banco e preferências ficam numa pasta
+// separada, para uma migração em desenvolvimento não quebrar o app instalado.
+if (command === 'dev') {
+  tauriCmd += ' --config src-tauri/tauri.dev.conf.json';
+}
 if (feature && feature !== 'none') {
   tauriCmd += ` -- --features ${feature}`;
   console.log(`🚀 Running: tauri ${command} with features: ${feature}`);

@@ -70,6 +70,8 @@ Release builds normally log `app_lib` at Info level under `logs/`. To enable Deb
 | macOS | `~/Library/Application Support/com.techfernandes.meetilylive` |
 | Windows | `%APPDATA%\com.techfernandes.meetilylive` |
 
+Development runs (`pnpm run tauri:dev*`) use the identifier `com.techfernandes.meetilylive.dev` (see `frontend/src-tauri/tauri.dev.conf.json`), so their database, preferences and models live in a sibling folder ending in `.dev`. This keeps an unreleased migration from breaking the installed app. To develop against real data, copy `meeting_minutes.sqlite` into the `.dev` folder and symlink `models`.
+
 Append `logs-dev/` for development builds or `logs/` for release builds. If the persistent log path is unavailable or unwritable, logging may fall back to a stream, so log files are not guaranteed.
 
 `RUST_LOG` does not control Meetily's configured application logger; build tools or dependencies may handle it separately.
